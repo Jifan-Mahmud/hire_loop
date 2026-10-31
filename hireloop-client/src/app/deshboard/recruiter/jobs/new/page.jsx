@@ -2,6 +2,7 @@
 "use client";
 
 import { createJob } from "@/lib/action/job";
+import { getMyCompany } from "@/lib/api/company";
 import {
   Briefcase,
   Calendar,
@@ -57,7 +58,7 @@ const CURRENCIES = ["USD", "EUR", "GBP", "BDT", "INR", "CAD", "AUD"].map((c) => 
   label: c,
 }));
 
-// Local date (YYYY-MM-DD) — avoids the UTC off-by-one that toISOString() causes
+// Local date (YYYY-MM-DD) Ã¢â‚¬â€ avoids the UTC off-by-one that toISOString() causes
 const todayLocal = () => new Date().toLocaleDateString("en-CA");
 
 const INITIAL_VALUES = {
@@ -122,7 +123,7 @@ function CompanyBanner({ status, company }) {
           <p className="font-medium text-amber-300">No company found</p>
           <p className="text-muted">
             Register your company first to start posting jobs.{" "}
-            <Link className="underline" href="/dashboard/recruiter/company">
+            <Link className="underline" href="/deshboard/recruiter/company">
               Register company
             </Link>
           </p>
@@ -155,7 +156,7 @@ function CompanyBanner({ status, company }) {
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{company.name}</p>
         <p className="truncate text-sm text-muted">
-          {[company.industry, company.location].filter(Boolean).join(" · ")}
+          {[company.industry, company.location].filter(Boolean).join(" Ã‚Â· ")}
         </p>
       </div>
       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400">
@@ -188,9 +189,8 @@ export default function NewJobPage() {
 
     async function loadCompany() {
       try {
-        const res = await fetch("/api/recruiter/company");
-        if (!res.ok) throw new Error("No company");
-        const data = await res.json();
+        const data = await getMyCompany();
+        if (!data || !data.name) throw new Error("No company");
         if (ignore) return;
         setCompany(data);
         setCompanyStatus("ready");
@@ -401,7 +401,7 @@ export default function NewJobPage() {
                     <Label>Location</Label>
                     <Input
                       fullWidth
-                      placeholder={values.isRemote ? "Remote — no location needed" : "City, Country"}
+                      placeholder={values.isRemote ? "Remote Ã¢â‚¬â€ no location needed" : "City, Country"}
                     />
                     <FieldError />
                   </TextField>
@@ -487,7 +487,7 @@ export default function NewJobPage() {
                   <Label>Benefits (optional)</Label>
                   <TextArea
                     fullWidth
-                    placeholder="Health insurance, remote stipend, learning budget, paid leave…"
+                    placeholder="Health insurance, remote stipend, learning budget, paid leaveÃ¢â‚¬Â¦"
                     rows={4}
                   />
                 </TextField>
@@ -521,7 +521,7 @@ export default function NewJobPage() {
                 isPending={isSubmitting}
                 type="submit"
               >
-                {isSubmitting ? "Posting…" : "Post Job"}
+                {isSubmitting ? "PostingÃ¢â‚¬Â¦" : "Post Job"}
               </Button>
             </div>
           </div>

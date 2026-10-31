@@ -28,6 +28,11 @@ const navItems = [
   },
   {
     icon: LayoutSideContent,
+    label: "My Company",
+    href: "/deshboard/recruiter/company",
+  },
+  {
+    icon: Briefcase,
     label: "Jobs",
     href: "/deshboard/recruiter/jobs",
   },

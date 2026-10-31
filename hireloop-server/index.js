@@ -7,7 +7,8 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 const uri = process.env.MONGO_DB_URI;
 
@@ -24,6 +25,117 @@ async function run() {
     await client.connect();
     const database = client.db("hire_Loop");
     const jobCollection = database.collection("jobs");
+    const companyCollection = database.collection("companies");
+
+    // ==========================================
+    // COMPANIES API ROUTES
+    // ==========================================
+
+    // Register a new company
+    app.post('/api/companies', async (req, res) => {
+      try {
+        const companyData = req.body;
+        companyData.status = companyData.status || "pending"; // always start pending until admin approves
+        companyData.createdAt = new Date();
+        companyData.updatedAt = new Date();
+        const result = await companyCollection.insertOne(companyData);
+        res.status(201).send({ insertedId: result.insertedId, ...companyData });
+      } catch (error) {
+        console.error("Error creating company:", error);
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // Get company for recruiter (by email, userId, or fallback)
+    app.get('/api/companies/my-company', async (req, res) => {
+      try {
+        const { email, userId } = req.query;
+        let query = {};
+        if (email || userId) {
+          const conditions = [];
+          if (email) {
+            conditions.push({ recruiterEmail: email }, { email: email });
+          }
+          if (userId) {
+            conditions.push({ recruiterId: userId }, { userId: userId });
+          }
+          query = { $or: conditions };
+        }
+
+        let company = null;
+        if (Object.keys(query).length > 0) {
+          company = await companyCollection.findOne(query);
+        }
+        
+        // If not found by query, fallback to the latest company if any exists (for smooth dev/demo)
+        if (!company) {
+          company = await companyCollection.findOne({}, { sort: { createdAt: -1 } });
+        }
+
+        if (!company) {
+          return res.status(404).send({ error: "No company registered yet" });
+        }
+        res.send(company);
+      } catch (error) {
+        console.error("Error fetching my-company:", error);
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // Get all companies (with optional status or query filter)
+    app.get('/api/companies', async (req, res) => {
+      try {
+        const query = {};
+        if (req.query.status) {
+          query.status = req.query.status;
+        }
+        if (req.query.recruiterEmail) {
+          query.recruiterEmail = req.query.recruiterEmail;
+        }
+        const cursor = companyCollection.find(query).sort({ createdAt: -1 });
+        const results = await cursor.toArray();
+        res.send(results);
+      } catch (error) {
+        console.error("Error fetching companies:", error);
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // Get single company by id
+    app.get('/api/companies/:id', async (req, res) => {
+      try {
+        const id = req.params.id;
+        const company = await companyCollection.findOne({ _id: new ObjectId(id) });
+        if (!company) {
+          return res.status(404).send({ error: "Company not found" });
+        }
+        res.send(company);
+      } catch (error) {
+        console.error("Error fetching company by id:", error);
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // Update company details
+    app.patch('/api/companies/:id', async (req, res) => {
+      try {
+        const id = req.params.id;
+        const updateData = { ...req.body, updatedAt: new Date() };
+        delete updateData._id; // prevent updating immutable _id
+        const result = await companyCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updateData }
+        );
+        res.send(result);
+      } catch (error) {
+        console.error("Error updating company:", error);
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // ==========================================
+    // JOBS API ROUTES
+    // ==========================================
 
     // Create a new job
     app.post('/api/jobs', async (req, res) => {
@@ -41,10 +153,10 @@ async function run() {
     // Get all jobs
     app.get('/api/jobs', async (req, res) => {
       const query = {};
-      if(req.query.companyId) {
+      if (req.query.companyId) {
         query.companyId = req.query.companyId;
       }
-      if(req.query.status) {
+      if (req.query.status) {
         query.status = req.query.status;
       }
       const cursor = jobCollection.find(query);
