@@ -26,6 +26,7 @@ async function run() {
     const database = client.db("hire_Loop");
     const jobCollection = database.collection("jobs");
     const companyCollection = database.collection("companies");
+    const applicationCollection = database.collection("applications");
 
     // ==========================================
     // COMPANIES API ROUTES
@@ -46,34 +47,44 @@ async function run() {
       }
     });
 
-    // Get company for recruiter (by email, userId, or fallback)
+    // Get company for recruiter (strictly by email or userId)
     app.get('/api/companies/my-company', async (req, res) => {
       try {
         const { email, userId } = req.query;
-        let query = {};
-        if (email || userId) {
-          const conditions = [];
-          if (email) {
-            conditions.push({ recruiterEmail: email }, { email: email });
-          }
-          if (userId) {
-            conditions.push({ recruiterId: userId }, { userId: userId });
-          }
-          query = { $or: conditions };
+        if (!email && !userId) {
+          return res.status(401).send({ error: "Unauthorized: User not authenticated" });
         }
 
-        let company = null;
-        if (Object.keys(query).length > 0) {
-          company = await companyCollection.findOne(query);
+        const conditions = [];
+        if (email) {
+          conditions.push({ recruiterEmail: email }, { email: email });
         }
-        
-        // If not found by query, fallback to the latest company if any exists (for smooth dev/demo)
-        if (!company) {
-          company = await companyCollection.findOne({}, { sort: { createdAt: -1 } });
+        if (userId) {
+          conditions.push({ recruiterId: userId }, { userId: userId });
+        }
+
+        let company = await companyCollection.findOne({ $or: conditions });
+
+        // If not found, check if there is an unassigned company (e.g. from previous registration)
+        if (!company && (email || userId)) {
+          const unassigned = await companyCollection.findOne({
+            $or: [
+              { recruiterEmail: "recruiter@example.com" },
+              { recruiterId: "recruiter-default-id" },
+            ],
+          });
+          if (unassigned) {
+            await companyCollection.updateOne(
+              { _id: unassigned._id },
+              { $set: { recruiterEmail: email, recruiterId: userId || unassigned.recruiterId } }
+            );
+            unassigned.recruiterEmail = email;
+            company = unassigned;
+          }
         }
 
         if (!company) {
-          return res.status(404).send({ error: "No company registered yet" });
+          return res.status(404).send({ error: "No company registered yet for this user" });
         }
         res.send(company);
       } catch (error) {
@@ -150,18 +161,45 @@ async function run() {
       }
     });
 
-    // Get all jobs
+    // Get all jobs (supports companyId, status, category, type, isRemote, search)
     app.get('/api/jobs', async (req, res) => {
-      const query = {};
-      if (req.query.companyId) {
-        query.companyId = req.query.companyId;
+      try {
+        const query = {};
+        if (req.query.companyId) {
+          const cId = req.query.companyId;
+          if (ObjectId.isValid(cId)) {
+            query.$or = [{ companyId: cId }, { companyId: new ObjectId(cId) }];
+          } else {
+            query.companyId = cId;
+          }
+        }
+        if (req.query.status) {
+          query.status = req.query.status;
+        }
+        if (req.query.category && req.query.category !== 'all') {
+          query.category = req.query.category.toLowerCase();
+        }
+        if (req.query.type && req.query.type !== 'all') {
+          query.type = req.query.type.toLowerCase();
+        }
+        if (req.query.isRemote !== undefined && req.query.isRemote !== 'all') {
+          query.isRemote = req.query.isRemote === 'true';
+        }
+        if (req.query.search) {
+          const s = req.query.search.trim();
+          query.$or = [
+            { title: { $regex: s, $options: 'i' } },
+            { companyName: { $regex: s, $options: 'i' } },
+            { location: { $regex: s, $options: 'i' } },
+          ];
+        }
+        const cursor = jobCollection.find(query).sort({ createdAt: -1 });
+        const results = await cursor.toArray();
+        res.send(results);
+      } catch (error) {
+        console.error('Error fetching jobs:', error);
+        res.status(500).send({ error: error.message });
       }
-      if (req.query.status) {
-        query.status = req.query.status;
-      }
-      const cursor = jobCollection.find(query);
-      const results = await cursor.toArray();
-      res.send(results);
     });
 
     // Get single job by id
@@ -204,6 +242,92 @@ async function run() {
         res.send(result);
       } catch (error) {
         console.error("Error updating job:", error);
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // ==========================================
+    // APPLICATIONS API ROUTES
+    // ==========================================
+
+    // Submit a new application (Only Job Seekers allowed)
+    app.post('/api/applications', async (req, res) => {
+      try {
+        const applicationData = req.body;
+
+        // Verify applicant role: Only Job Seekers can apply
+        if (applicationData.applicantRole && applicationData.applicantRole !== 'seeker') {
+          return res.status(403).send({
+            error: "Only Job Seekers can apply for jobs. Recruiters are not allowed to apply.",
+          });
+        }
+
+        if (!applicationData.jobId || !applicationData.applicantEmail) {
+          return res.status(400).send({ error: "Job ID and Applicant Email are required." });
+        }
+
+        // Check if already applied
+        const existing = await applicationCollection.findOne({
+          jobId: applicationData.jobId,
+          applicantEmail: applicationData.applicantEmail,
+        });
+
+        if (existing) {
+          return res.status(409).send({
+            error: "You have already applied for this position.",
+            applicationId: existing._id,
+          });
+        }
+
+        const newApplication = {
+          ...applicationData,
+          status: "pending",
+          appliedAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        const result = await applicationCollection.insertOne(newApplication);
+        res.status(201).send({
+          success: true,
+          insertedId: result.insertedId,
+          message: "Application submitted successfully!",
+        });
+      } catch (error) {
+        console.error("Error submitting application:", error);
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // Check if user already applied to a specific job
+    app.get('/api/applications/check', async (req, res) => {
+      try {
+        const { jobId, applicantEmail } = req.query;
+        if (!jobId || !applicantEmail) {
+          return res.status(400).send({ error: "jobId and applicantEmail are required." });
+        }
+        const application = await applicationCollection.findOne({
+          jobId,
+          applicantEmail,
+        });
+        res.send({ hasApplied: !!application, application });
+      } catch (error) {
+        console.error("Error checking application status:", error);
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // Get applications (filter by jobId, applicantEmail, companyId)
+    app.get('/api/applications', async (req, res) => {
+      try {
+        const query = {};
+        if (req.query.jobId) query.jobId = req.query.jobId;
+        if (req.query.applicantEmail) query.applicantEmail = req.query.applicantEmail;
+        if (req.query.companyId) query.companyId = req.query.companyId;
+
+        const results = await applicationCollection.find(query).sort({ appliedAt: -1 }).toArray();
+        res.send(results);
+      } catch (error) {
+        console.error("Error fetching applications:", error);
         res.status(500).send({ error: error.message });
       }
     });

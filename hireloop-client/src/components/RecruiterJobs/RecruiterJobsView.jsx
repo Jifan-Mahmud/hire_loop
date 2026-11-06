@@ -18,7 +18,7 @@ import {
 } from "@gravity-ui/icons";
 import { deleteJob, updateJobStatus } from "@/lib/api/jobs";
 
-export default function RecruiterJobsView({ initialJobs = [], companyId = "company-default-id" }) {
+export default function RecruiterJobsView({ initialJobs = [], companyId = null, company = null }) {
   const [jobs, setJobs] = useState(initialJobs);
   const [viewMode, setViewMode] = useState("table"); // 'table' | 'cards'
   const [searchQuery, setSearchQuery] = useState("");
@@ -128,11 +128,23 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = "compa
       {/* Top Banner / Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-white/10">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white">
-            Manage Posted Jobs
-          </h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white">
+              Manage Posted Jobs
+            </h1>
+            {company?.name && (
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-neutral-300">
+                {company.logo ? (
+                  <img src={company.logo} alt={company.name} className="w-4 h-4 rounded-full object-cover" />
+                ) : (
+                  <Briefcase width={14} height={14} className="text-purple-400" />
+                )}
+                <span>{company.name}</span>
+              </span>
+            )}
+          </div>
           <p className="text-sm text-neutral-400 mt-1">
-            Track, review, and manage all employment openings for your company.
+            Track, review, and manage all employment openings {company?.name ? `for ${company.name}` : "for your company"}.
           </p>
         </div>
 
@@ -144,6 +156,24 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = "compa
           <span>Post New Job</span>
         </Link>
       </div>
+
+      {/* If recruiter has no company registered */}
+      {!company && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <p className="font-semibold text-amber-300">No Company Profile Found</p>
+            <p className="text-xs text-amber-200/80 mt-0.5">
+              Register your company profile first so job openings can be properly linked to your business.
+            </p>
+          </div>
+          <Link
+            href="/deshboard/recruiter/company"
+            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs shrink-0 transition-colors"
+          >
+            Register Company
+          </Link>
+        </div>
+      )}
 
       {/* Stats Counter Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">

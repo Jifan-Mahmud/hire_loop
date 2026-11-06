@@ -17,8 +17,11 @@ export async function getMyCompany(params = {}) {
       return null;
     }
 
-    const data = await res.json();
-    return data;
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return await res.json();
+    }
+    return null;
   } catch (error) {
     console.error("Error in getMyCompany:", error);
     return null;
@@ -35,8 +38,21 @@ export async function registerCompany(companyData) {
       body: JSON.stringify(companyData),
     });
 
-    const result = await res.json();
-    return result;
+    const contentType = res.headers.get("content-type");
+    if (!res.ok) {
+      if (contentType && contentType.includes("application/json")) {
+        const errData = await res.json();
+        return { error: errData.error || `Server error: ${res.status}` };
+      }
+      return {
+        error: `Server error (${res.status}): Make sure backend server (hireloop-server) is running on port 5000.`,
+      };
+    }
+
+    if (contentType && contentType.includes("application/json")) {
+      return await res.json();
+    }
+    return { error: "Invalid response from server. Ensure hireloop-server is running." };
   } catch (error) {
     console.error("Error registering company:", error);
     return { error: error.message };
@@ -53,8 +69,21 @@ export async function updateCompany(companyId, companyData) {
       body: JSON.stringify(companyData),
     });
 
-    const result = await res.json();
-    return result;
+    const contentType = res.headers.get("content-type");
+    if (!res.ok) {
+      if (contentType && contentType.includes("application/json")) {
+        const errData = await res.json();
+        return { error: errData.error || `Server error: ${res.status}` };
+      }
+      return {
+        error: `Server error (${res.status}): Make sure backend server is running on port 5000.`,
+      };
+    }
+
+    if (contentType && contentType.includes("application/json")) {
+      return await res.json();
+    }
+    return { error: "Invalid response from server. Ensure backend server is running." };
   } catch (error) {
     console.error("Error updating company:", error);
     return { error: error.message };

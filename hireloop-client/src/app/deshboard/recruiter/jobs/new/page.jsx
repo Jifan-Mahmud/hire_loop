@@ -3,6 +3,7 @@
 
 import { createJob } from "@/lib/action/job";
 import { getMyCompany } from "@/lib/api/company";
+import { useSession } from "@/lib/auth-client";
 import {
   Briefcase,
   Calendar,
@@ -115,7 +116,7 @@ function CompanyBanner({ status, company }) {
     return <div className="h-[72px] animate-pulse rounded-xl border border-border bg-surface" />;
   }
 
-  if (status === "missing") {
+  if (status === "missing" || !company) {
     return (
       <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
         <TriangleExclamation className="mt-0.5 size-5 shrink-0 text-amber-400" />
@@ -123,7 +124,7 @@ function CompanyBanner({ status, company }) {
           <p className="font-medium text-amber-300">No company found</p>
           <p className="text-muted">
             Register your company first to start posting jobs.{" "}
-            <Link className="underline" href="/deshboard/recruiter/company">
+            <Link className="underline text-indigo-400 hover:text-indigo-300" href="/deshboard/recruiter/company">
               Register company
             </Link>
           </p>
@@ -132,37 +133,50 @@ function CompanyBanner({ status, company }) {
     );
   }
 
-  if (company.status !== "approved") {
+  if (company.status === "rejected") {
     return (
-      <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
-        <TriangleExclamation className="mt-0.5 size-5 shrink-0 text-amber-400" />
+      <div className="flex items-start gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm">
+        <TriangleExclamation className="mt-0.5 size-5 shrink-0 text-rose-400" />
         <div>
-          <p className="font-medium text-amber-300">
-            {company.name} is {company.status === "rejected" ? "not approved" : "awaiting approval"}
+          <p className="font-medium text-rose-300">
+            {company.name} is not approved
           </p>
           <p className="text-muted">
-            You can post jobs once an admin approves your company.
+            Your company registration was rejected. Please update your company profile.
           </p>
         </div>
       </div>
     );
   }
 
+  const isApproved = company.status === "approved";
+
   return (
     <div className="flex items-center gap-4 rounded-xl border border-border bg-surface p-4">
-      <div className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-black/30">
-        <Briefcase className="size-5 text-muted" />
+      <div className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-black/30 overflow-hidden">
+        {company.logo ? (
+          <img src={company.logo} alt={company.name} className="size-full object-cover" />
+        ) : (
+          <Briefcase className="size-5 text-muted" />
+        )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{company.name}</p>
-        <p className="truncate text-sm text-muted">
-          {[company.industry, company.location].filter(Boolean).join(" Ã‚Â· ")}
+        <p className="truncate font-medium text-white">{company.name}</p>
+        <p className="truncate text-sm text-neutral-400">
+          {[company.industry, company.location].filter(Boolean).join(" · ")}
         </p>
       </div>
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400">
-        <CircleCheck className="size-3.5" />
-        Approved
-      </span>
+      {isApproved ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400">
+          <CircleCheck className="size-3.5" />
+          Approved
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-400">
+          <TriangleExclamation className="size-3.5" />
+          Pending Review
+        </span>
+      )}
     </div>
   );
 }
@@ -173,6 +187,7 @@ function CompanyBanner({ status, company }) {
 
 export default function NewJobPage() {
   const router = useRouter();
+  const { data: session, isPending: sessionLoading } = useSession();
 
   const [values, setValues] = useState(INITIAL_VALUES);
   const [company, setCompany] = useState(null);
@@ -183,28 +198,41 @@ export default function NewJobPage() {
 
   const set = (field) => (value) => setValues((prev) => ({ ...prev, [field]: value }));
 
-  /* Auto-fill the recruiter's company (resolved on the server from the session) */
+  /* Dynamically load this recruiter's actual registered company */
   useEffect(() => {
     let ignore = false;
 
     async function loadCompany() {
+      if (sessionLoading) return;
+
+      if (!session?.user?.email) {
+        setCompanyStatus("missing");
+        return;
+      }
+
       try {
-        const data = await getMyCompany();
-        if (!data || !data.name) throw new Error("No company");
-        if (ignore) return;
-        setCompany(data);
-        setCompanyStatus("ready");
-      } catch {
+        const data = await getMyCompany({
+          email: session.user.email,
+          userId: session.user.id,
+        });
+
+        if (!data || !data.name) {
+          if (!ignore) {
+            setCompany(null);
+            setCompanyStatus("missing");
+          }
+          return;
+        }
+
         if (!ignore) {
-          // Fallback approved company so recruiter can post jobs without blocking
-          setCompany({
-            id: "company-default-id",
-            name: "My Company",
-            industry: "Technology",
-            location: "Remote",
-            status: "approved",
-          });
+          setCompany(data);
           setCompanyStatus("ready");
+        }
+      } catch (err) {
+        console.error("Failed to load company:", err);
+        if (!ignore) {
+          setCompany(null);
+          setCompanyStatus("missing");
         }
       }
     }
@@ -213,9 +241,9 @@ export default function NewJobPage() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [session?.user?.email, session?.user?.id, sessionLoading]);
 
-  const canPost = companyStatus === "ready" && company?.status === "approved";
+  const canPost = companyStatus === "ready" && company && company.status !== "rejected";
 
   /* Field validators (TextField `validate` runs on submit with native behavior) */
   const validateMax = (v) => {
@@ -244,6 +272,12 @@ export default function NewJobPage() {
       return;
     }
 
+    const dynamicCompanyId = company?._id ? company._id.toString() : company?.id;
+    if (!dynamicCompanyId) {
+      setSubmitError("Company profile not found. Please register your company before posting jobs.");
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitError("");
 
@@ -260,7 +294,11 @@ export default function NewJobPage() {
       responsibilities: values.responsibilities?.trim() || "",
       requirements: values.requirements?.trim() || "",
       benefits: values.benefits?.trim() || null,
-      companyId: company?.id || "company-default-id",
+      companyId: dynamicCompanyId,
+      companyName: company?.name || "",
+      companyLogo: company?.logo || "",
+      recruiterEmail: session?.user?.email || company?.recruiterEmail || "",
+      recruiterId: session?.user?.id || company?.recruiterId || "",
       status: "active",
       isPublic: true,
     };
@@ -275,6 +313,7 @@ export default function NewJobPage() {
       if (res && res.insertedId) {
         alert("Job posted successfully!");
         e.currentTarget.reset();
+        router.refresh();
         router.push("/deshboard/recruiter/jobs");
       } else if (res && res.error) {
         setSubmitError(res.error);

@@ -1,13 +1,54 @@
 const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-export async function getCompanyJobs(companyId, status) {
+export async function getAllJobs(filters = {}) {
   try {
-    let url = `${baseUrl}/api/jobs`;
-    const params = [];
-    if (companyId) params.push(`companyId=${encodeURIComponent(companyId)}`);
-    if (status) params.push(`status=${encodeURIComponent(status)}`);
-    if (params.length > 0) {
-      url += `?${params.join("&")}`;
+    const params = new URLSearchParams();
+    if (filters.category && filters.category !== "all") params.append("category", filters.category);
+    if (filters.type && filters.type !== "all") params.append("type", filters.type);
+    if (filters.isRemote !== undefined && filters.isRemote !== null && filters.isRemote !== "all") {
+      params.append("isRemote", filters.isRemote);
+    }
+    if (filters.search) params.append("search", filters.search);
+    if (filters.status) params.append("status", filters.status);
+
+    const queryString = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetch(`${baseUrl}/api/jobs${queryString}`, { cache: "no-store" });
+    if (!res.ok) {
+      console.error("Failed to fetch jobs:", res.status);
+      return [];
+    }
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return await res.json();
+    }
+    return [];
+  } catch (error) {
+    console.error("Error in getAllJobs:", error);
+    return [];
+  }
+}
+
+export async function getJobById(jobId) {
+  try {
+    const res = await fetch(`${baseUrl}/api/jobs/${jobId}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return await res.json();
+    }
+    return null;
+  } catch (error) {
+    console.error("Error in getJobById:", error);
+    return null;
+  }
+}
+
+export async function getCompanyJobs(companyId, status) {
+  if (!companyId) return [];
+  try {
+    let url = `${baseUrl}/api/jobs?companyId=${encodeURIComponent(companyId)}`;
+    if (status) {
+      url += `&status=${encodeURIComponent(status)}`;
     }
 
     const res = await fetch(url, { cache: "no-store" });
@@ -15,8 +56,11 @@ export async function getCompanyJobs(companyId, status) {
       console.error("Failed to fetch jobs:", res.status, res.statusText);
       return [];
     }
-    const result = await res.json();
-    return result;
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return await res.json();
+    }
+    return [];
   } catch (error) {
     console.error("Error fetching company jobs:", error);
     return [];
@@ -28,7 +72,11 @@ export async function deleteJob(jobId) {
     const res = await fetch(`${baseUrl}/api/jobs/${jobId}`, {
       method: "DELETE",
     });
-    return await res.json();
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return await res.json();
+    }
+    return { error: `Server response: ${res.status}` };
   } catch (error) {
     console.error("Error deleting job:", error);
     return { error: error.message };
@@ -42,7 +90,11 @@ export async function updateJobStatus(jobId, status) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    return await res.json();
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return await res.json();
+    }
+    return { error: `Server response: ${res.status}` };
   } catch (error) {
     console.error("Error updating job status:", error);
     return { error: error.message };

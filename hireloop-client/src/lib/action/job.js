@@ -1,5 +1,7 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+
 const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export async function createJob(data) {
@@ -12,6 +14,7 @@ export async function createJob(data) {
             },
         });
         const result = await res.json();
+        revalidatePath('/deshboard/recruiter/jobs');
         return result;
     } catch (error) {
         console.error("Error creating job:", error);

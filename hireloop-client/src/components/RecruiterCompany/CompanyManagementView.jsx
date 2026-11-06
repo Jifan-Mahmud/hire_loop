@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowUpRightFromSquare,
@@ -15,17 +15,36 @@ import {
   Plus,
   Xmark,
 } from "@gravity-ui/icons";
-import { registerCompany, updateCompany } from "@/lib/api/company";
+import { registerCompany, updateCompany, getMyCompany } from "@/lib/api/company";
 import { uploadToImgBB } from "@/lib/api/uploadImage";
+import { useSession } from "@/lib/auth-client";
 
 export default function CompanyManagementView({ initialCompany = null, user = null }) {
-  const [company, setCompany] = useState(initialCompany);
+  const { data: session } = useSession();
+  const currentUser = user || session?.user;
+
+  // Local state for updates/registers made in modal
+  const [company, setCompany] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [formError, setFormError] = useState("");
   const fileInputRef = useRef(null);
+
+  // Active company: local state if modified, else initialCompany from server
+  const activeCompany = company ?? initialCompany;
+
+  // Client-side fallback fetch only if initialCompany was not provided
+  useEffect(() => {
+    if (!initialCompany && currentUser?.email) {
+      getMyCompany({ email: currentUser.email, userId: currentUser.id }).then((data) => {
+        if (data && !data.error && data._id) {
+          setCompany(data);
+        }
+      });
+    }
+  }, [initialCompany, currentUser?.email, currentUser?.id]);
 
   // Form state pre-filled from existing company or blank defaults
   const [formData, setFormData] = useState({
@@ -54,15 +73,15 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
   };
 
   const openEditModal = () => {
-    if (!company) return;
+    if (!activeCompany) return;
     setFormData({
-      name: company.name || "",
-      industry: company.industry || "Technology",
-      website: (company.website || "").replace(/^https?:\/\//, ""),
-      location: company.location || "",
-      employeeRange: company.employeeRange || "1-10 employees",
-      logo: company.logo || "",
-      description: company.description || "",
+      name: activeCompany.name || "",
+      industry: activeCompany.industry || "Technology",
+      website: (activeCompany.website || "").replace(/^https?:\/\//, ""),
+      location: activeCompany.location || "",
+      employeeRange: activeCompany.employeeRange || "1-10 employees",
+      logo: activeCompany.logo || "",
+      description: activeCompany.description || "",
     });
     setFormError("");
     setUploadSuccess(false);
@@ -127,6 +146,11 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
       return;
     }
 
+    if (!currentUser?.email) {
+      setFormError("You must be logged in as a recruiter to register or edit a company.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const payload = {
@@ -137,14 +161,14 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
       employeeRange: formData.employeeRange,
       logo: formData.logo,
       description: formData.description.trim(),
-      recruiterId: user?.id || "recruiter-default-id",
-      recruiterEmail: user?.email || "recruiter@example.com",
+      recruiterId: currentUser?.id || "recruiter-default-id",
+      recruiterEmail: currentUser?.email,
     };
 
     try {
-      if (company && company._id) {
+      if (activeCompany && activeCompany._id) {
         // Update existing company
-        const res = await updateCompany(company._id, payload);
+        const res = await updateCompany(activeCompany._id, payload);
         if (res && !res.error) {
           setCompany((prev) => ({
             ...prev,
@@ -222,7 +246,7 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
           </p>
         </div>
 
-        {company && (
+        {activeCompany && (
           <div className="flex items-center gap-2.5">
             <button
               onClick={openEditModal}
@@ -243,9 +267,9 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
       </div>
 
       {/* =========================================================
-          STATE 1: NO COMPANY REGISTERED YET
+          STATE 1: NO COMPANY REGISTERED YET (OR SIGNED OUT)
          ========================================================= */}
-      {!company ? (
+      {!activeCompany ? (
         <div className="py-16 px-6 text-center rounded-3xl border border-dashed border-white/15 bg-neutral-900/40 backdrop-blur-sm max-w-3xl mx-auto shadow-2xl">
           <div className="w-20 h-20 mx-auto rounded-3xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 mb-5 shadow-inner">
             <Briefcase width={36} height={36} />
@@ -256,9 +280,9 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
           </h2>
 
           <p className="text-neutral-400 text-sm max-w-lg mx-auto mt-2 mb-8 leading-relaxed">
-            You haven&apos;t registered your company yet. Add your business profile so
-            our admin team can verify your organization and you can start posting job
-            openings to thousands of candidates.
+            You haven&apos;t registered a company under your recruiter account yet. Add
+            your business profile so our admin team can verify your organization and
+            you can start posting job openings.
           </p>
 
           <button
@@ -275,7 +299,7 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
            ========================================================= */
         <div className="space-y-6">
           {/* Status Alert Banner */}
-          {company.status === "pending" && (
+          {activeCompany.status === "pending" && (
             <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-200 flex items-start gap-3">
               <Clock width={20} height={20} className="text-amber-400 shrink-0 mt-0.5" />
               <div className="text-sm">
@@ -291,7 +315,7 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
             </div>
           )}
 
-          {company.status === "rejected" && (
+          {activeCompany.status === "rejected" && (
             <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-200 flex items-start gap-3">
               <CircleXmark width={20} height={20} className="text-rose-400 shrink-0 mt-0.5" />
               <div className="text-sm">
@@ -304,7 +328,7 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
             </div>
           )}
 
-          {company.status === "approved" && (
+          {activeCompany.status === "approved" && (
             <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 flex items-start gap-3">
               <CircleCheck width={20} height={20} className="text-emerald-400 shrink-0 mt-0.5" />
               <div className="text-sm">
@@ -322,16 +346,16 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
             <div className="flex items-center gap-5">
               {/* Logo Box */}
               <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-neutral-950 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-lg">
-                {company.logo ? (
+                {activeCompany.logo ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={company.logo}
-                    alt={company.name}
+                    src={activeCompany.logo}
+                    alt={activeCompany.name}
                     className="w-full h-full object-cover"
                   />
                 ) : (
                   <span className="text-3xl font-black text-purple-400">
-                    {company.name?.charAt(0)?.toUpperCase() || "C"}
+                    {activeCompany.name?.charAt(0)?.toUpperCase() || "C"}
                   </span>
                 )}
               </div>
@@ -339,34 +363,34 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
               <div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                    {company.name}
+                    {activeCompany.name}
                   </h2>
-                  {renderStatusBadge(company.status)}
+                  {renderStatusBadge(activeCompany.status)}
                 </div>
 
                 <div className="flex items-center gap-3 mt-2 text-sm text-neutral-400 flex-wrap">
-                  {company.industry && (
+                  {activeCompany.industry && (
                     <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-300 border border-purple-500/20">
-                      {company.industry}
+                      {activeCompany.industry}
                     </span>
                   )}
-                  {company.location && (
+                  {activeCompany.location && (
                     <span className="flex items-center gap-1 text-neutral-300">
                       <MapPin width={14} height={14} className="text-neutral-500" />
-                      {company.location}
+                      {activeCompany.location}
                     </span>
                   )}
                 </div>
 
-                {company.website && (
+                {activeCompany.website && (
                   <a
-                    href={company.website}
+                    href={activeCompany.website}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 mt-2.5 text-xs text-purple-400 hover:text-purple-300 font-medium transition-colors"
                   >
                     <Globe width={13} height={13} />
-                    <span>{company.website.replace(/^https?:\/\//, "")}</span>
+                    <span>{activeCompany.website.replace(/^https?:\/\//, "")}</span>
                     <ArrowUpRightFromSquare width={11} height={11} />
                   </a>
                 )}
@@ -390,7 +414,7 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
                 <span>Industry</span>
               </div>
               <p className="text-base font-semibold text-white mt-2 capitalize">
-                {company.industry || "Not specified"}
+                {activeCompany.industry || "Not specified"}
               </p>
             </div>
 
@@ -400,7 +424,7 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
                 <span>Location</span>
               </div>
               <p className="text-base font-semibold text-white mt-2">
-                {company.location || "Not specified"}
+                {activeCompany.location || "Not specified"}
               </p>
             </div>
 
@@ -410,7 +434,7 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
                 <span>Team Size</span>
               </div>
               <p className="text-base font-semibold text-white mt-2">
-                {company.employeeRange || "1-10 employees"}
+                {activeCompany.employeeRange || "1-10 employees"}
               </p>
             </div>
 
@@ -420,7 +444,7 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
                 <span>Admin Status</span>
               </div>
               <p className="text-base font-semibold text-white mt-2 capitalize">
-                {company.status || "Pending"}
+                {activeCompany.status || "Pending"}
               </p>
             </div>
           </div>
@@ -431,7 +455,7 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
               About the Company
             </h3>
             <p className="text-sm text-neutral-300 leading-relaxed whitespace-pre-line">
-              {company.description ||
+              {activeCompany.description ||
                 "No description provided yet. Click the Edit button above to tell candidates about your mission, values, and workplace culture."}
             </p>
           </div>
@@ -475,7 +499,7 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
             <div className="flex items-start justify-between gap-3 pb-3">
               <div>
                 <h2 className="text-lg md:text-xl font-bold text-white tracking-tight">
-                  {company ? "Edit Company Details" : "Register New Company"}
+                  {activeCompany ? "Edit Company Details" : "Register New Company"}
                 </h2>
                 <p className="text-xs text-neutral-400 mt-1">
                   Enter your business details to start hiring on HireLoop.
@@ -720,7 +744,7 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
                     ? "Uploading image..."
                     : isSubmitting
                     ? "Saving..."
-                    : company
+                    : activeCompany
                     ? "Save Changes"
                     : "Register Company"}
                 </button>

@@ -232,13 +232,18 @@ function UserCard() {
     .toUpperCase();
 
   const handleSignOut = async () => {
-    await authClient.signOut({
-      fetchOptions: {
-        onSuccess: () => {
-          router.push("/signin");
+    try {
+      await authClient.signOut({
+        fetchOptions: {
+          onSuccess: () => {
+            router.push("/signin");
+          },
         },
-      },
-    });
+      });
+    } catch (err) {
+      console.error("Sign out error:", err);
+      router.push("/signin");
+    }
   };
 
   return (

@@ -25,9 +25,18 @@ export default function Navbar() {
   const { data: session, isLoading } = useSession();
   const user = session?.user;
   const handleSignOut = async () => {
-    await authClient.signOut();
-
-    window.location.href = "/signin";
+    try {
+      await authClient.signOut({
+        fetchOptions: {
+          onSuccess: () => {
+            window.location.href = "/signin";
+          },
+        },
+      });
+    } catch (err) {
+      console.error("Sign out error:", err);
+      window.location.href = "/signin";
+    }
   };
   return (
     // absolute + inset-x-2 + top-2 => floats on top of the hero background
