@@ -18,10 +18,15 @@ import {
   Lock,
   MapPin,
   Person,
+  Sparkles,
   TriangleExclamation,
 } from "@gravity-ui/icons";
 import { useSession, authClient } from "@/lib/auth-client";
-import { submitApplication, checkApplicationStatus } from "@/lib/api/applications";
+import {
+  submitApplication,
+  checkApplicationStatus,
+  getMonthlyApplicationUsage,
+} from "@/lib/api/applications";
 
 export default function JobApplyView({
   initialJob = null,
@@ -54,6 +59,28 @@ export default function JobApplyView({
   const [hasApplied, setHasApplied] = useState(false);
   const [checkingApplied, setCheckingApplied] = useState(false);
   const [submittedData, setSubmittedData] = useState(null);
+  const [monthlyUsage, setMonthlyUsage] = useState(null);
+
+  // Fetch candidate's monthly usage and Free Plan quota
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchUsage() {
+      if (user?.email && user?.role !== "recruiter") {
+        try {
+          const usage = await getMonthlyApplicationUsage(user.email);
+          if (isMounted && usage) {
+            setMonthlyUsage(usage);
+          }
+        } catch (e) {
+          console.error("Error fetching monthly usage:", e);
+        }
+      }
+    }
+    fetchUsage();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.email, user?.role]);
 
   // Check if candidate already applied for the selected job
   useEffect(() => {
@@ -121,6 +148,13 @@ export default function JobApplyView({
     e.preventDefault();
     setErrorMessage("");
 
+    if (monthlyUsage?.isLimitReached) {
+      setErrorMessage(
+        "Monthly application limit reached (3/3). On the Free Plan, you can apply to up to 3 jobs per month. Your quota will reset next month."
+      );
+      return;
+    }
+
     if (!selectedJob) {
       setErrorMessage("Please select a job position to apply for.");
       return;
@@ -185,6 +219,16 @@ export default function JobApplyView({
         appliedAt: new Date().toISOString(),
       });
       setHasApplied(true);
+      setMonthlyUsage((prev) => {
+        if (!prev) return prev;
+        const newUsed = prev.monthlyUsed + 1;
+        return {
+          ...prev,
+          monthlyUsed: newUsed,
+          monthlyRemaining: Math.max(0, prev.monthlyLimit - newUsed),
+          isLimitReached: newUsed >= prev.monthlyLimit,
+        };
+      });
     } catch (err) {
       console.error("Submission error:", err);
       setErrorMessage("Something went wrong. Please try again.");
@@ -469,6 +513,90 @@ export default function JobApplyView({
           <p className="mt-2 text-sm sm:text-base text-neutral-400">
             Submit your resume and details directly to the hiring team.
           </p>
+
+          {/* ========================================================
+              FREE PLAN & MONTHLY USAGE (Right under description)
+             ======================================================== */}
+          <div className="mt-5 rounded-2xl border border-white/10 bg-[#121212]/90 backdrop-blur p-4 sm:p-5 shadow-lg">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              {/* Plan Info */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 shrink-0">
+                  {monthlyUsage?.plan || "Free"} Plan • {monthlyUsage?.price || "$0/forever"}
+                </span>
+                <span className="text-xs sm:text-sm text-neutral-300">
+                  Application Limit:{" "}
+                  <strong className="text-white">
+                    {monthlyUsage?.isPremium
+                      ? "Unlimited Applications"
+                      : `Up to ${monthlyUsage?.monthlyLimit || 3} jobs per month`}
+                  </strong>
+                </span>
+              </div>
+
+              {/* Live Quota Counter & Progress Bar */}
+              <div className="flex items-center gap-3 shrink-0">
+                {!monthlyUsage?.isPremium ? (
+                  <>
+                    <div className="w-28 sm:w-36 h-2 rounded-full bg-white/10 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-500 rounded-full ${
+                          monthlyUsage?.isLimitReached
+                            ? "bg-amber-500"
+                            : "bg-gradient-to-r from-purple-500 to-indigo-500"
+                        }`}
+                        style={{
+                          width: `${Math.min(100, (((monthlyUsage?.monthlyUsed || 0) / (monthlyUsage?.monthlyLimit || 3)) * 100))}%`,
+                        }}
+                      />
+                    </div>
+
+                    <span className="text-xs font-semibold text-white shrink-0">
+                      <span className={monthlyUsage?.isLimitReached ? "text-amber-400 font-bold" : "text-purple-400 font-bold"}>
+                        {monthlyUsage ? monthlyUsage.monthlyUsed : 0}
+                      </span>
+                      {" / "}
+                      <span>{monthlyUsage ? monthlyUsage.monthlyLimit : 3} used</span>
+                      <span className="text-neutral-400 font-normal ml-1">
+                        ({monthlyUsage ? monthlyUsage.monthlyRemaining : 3} left)
+                      </span>
+                    </span>
+                  </>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-xs font-bold text-purple-300">
+                    <span>✨ Unlimited Applications Active</span>
+                    <span className="text-neutral-400 font-normal">
+                      ({monthlyUsage?.monthlyUsed || 0} submitted)
+                    </span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Plan Features Row */}
+            <div className="mt-3.5 pt-3 border-t border-white/5 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-neutral-400">
+              {(monthlyUsage?.features || [
+                "Browse & save up to 10 jobs",
+                "Apply to up to 3 jobs per month",
+                "Basic profile",
+                "Email alerts",
+              ]).map((feat, idx) => (
+                <span
+                  key={idx}
+                  className={`flex items-center gap-1.5 ${
+                    idx === 0 ? "text-purple-300 font-medium" : ""
+                  }`}
+                >
+                  <Check
+                    width={13}
+                    height={13}
+                    className={idx === 0 ? "text-purple-400 shrink-0" : "text-neutral-500 shrink-0"}
+                  />
+                  <span>{feat}</span>
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -771,23 +899,43 @@ export default function JobApplyView({
                 <div className="pt-4 border-t border-white/10">
                   <button
                     type="submit"
-                    disabled={submitting}
-                    className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:via-indigo-500 hover:to-blue-500 text-white font-semibold text-sm transition-all shadow-xl shadow-purple-600/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.01] active:scale-[0.99]"
+                    disabled={submitting || monthlyUsage?.isLimitReached}
+                    className={`w-full h-12 rounded-xl text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+                      monthlyUsage?.isLimitReached
+                        ? "bg-neutral-800 text-neutral-400 border border-white/10 cursor-not-allowed"
+                        : "bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:via-indigo-500 hover:to-blue-500 shadow-xl shadow-purple-600/30 hover:scale-[1.01] active:scale-[0.99]"
+                    } disabled:opacity-60 disabled:cursor-not-allowed`}
                   >
                     {submitting ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         <span>Submitting Application...</span>
                       </>
+                    ) : monthlyUsage?.isLimitReached ? (
+                      <>
+                        <TriangleExclamation width={16} height={16} className="text-amber-400" />
+                        <span>Monthly Limit Reached (3/3 Applied)</span>
+                      </>
                     ) : (
                       <>
-                        <span>Submit Job Application</span>
+                        <span>
+                          Submit Job Application{" "}
+                          {monthlyUsage ? `(${monthlyUsage.monthlyRemaining} of ${monthlyUsage.monthlyLimit} left)` : ""}
+                        </span>
                         <ArrowRight width={16} height={16} />
                       </>
                     )}
                   </button>
                   <p className="text-center text-[11px] text-neutral-500 mt-3">
-                    By submitting, your profile and resume will be securely transmitted to {selectedJob?.companyName || "the recruiter"}.
+                    {monthlyUsage?.isLimitReached ? (
+                      <span className="text-amber-400">
+                        You have reached your 3-job monthly application limit on the Free Plan. Quota resets on the 1st of next month.
+                      </span>
+                    ) : (
+                      <span>
+                        Free Plan: Up to 3 applications/month. Your submission will be securely transmitted to {selectedJob?.companyName || "the recruiter"}.
+                      </span>
+                    )}
                   </p>
                 </div>
               </form>

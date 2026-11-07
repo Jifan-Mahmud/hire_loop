@@ -27,6 +27,89 @@ async function run() {
     const jobCollection = database.collection("jobs");
     const companyCollection = database.collection("companies");
     const applicationCollection = database.collection("applications");
+    const userCollection = database.collection("user");
+    const subscriptionCollection = database.collection("subscriptions");
+
+    // ==========================================
+    // SUBSCRIPTIONS & USER PLAN ROUTES
+    // ==========================================
+
+    // Upgrade or activate user plan (called upon successful payment or admin)
+    app.post('/api/users/upgrade-plan', async (req, res) => {
+      try {
+        const { email, planId, sessionId } = req.body;
+        if (!email || !planId) {
+          return res.status(400).send({ error: "Email and planId are required." });
+        }
+
+        const cleanPlan = planId
+          .replace('seeker-', '')
+          .replace('recruiter-', '')
+          .toLowerCase();
+
+        // Update user record
+        await userCollection.updateOne(
+          { email: email },
+          {
+            $set: {
+              plan: cleanPlan,
+              planId: planId,
+              planStatus: 'active',
+              upgradedAt: new Date(),
+            },
+          },
+          { upsert: false }
+        );
+
+        // Update recruiter company if exists
+        await companyCollection.updateMany(
+          { $or: [{ recruiterEmail: email }, { email: email }] },
+          { $set: { plan: cleanPlan, planUpdatedAt: new Date() } }
+        );
+
+        // Record in subscriptions collection
+        await subscriptionCollection.insertOne({
+          email,
+          planId,
+          plan: cleanPlan,
+          sessionId: sessionId || null,
+          status: 'active',
+          activatedAt: new Date(),
+        });
+
+        res.send({
+          success: true,
+          message: `Plan successfully activated to ${cleanPlan}!`,
+          plan: cleanPlan,
+        });
+      } catch (error) {
+        console.error("Error upgrading user plan:", error);
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // Get current plan and active subscription details for user
+    app.get('/api/users/plan', async (req, res) => {
+      try {
+        const { email } = req.query;
+        if (!email) {
+          return res.status(400).send({ error: "Email query param is required." });
+        }
+
+        const user = await userCollection.findOne({ email });
+        const plan = (user?.plan || "free").toLowerCase();
+
+        res.send({
+          email,
+          plan,
+          planId: user?.planId || `seeker-${plan}`,
+          upgradedAt: user?.upgradedAt || null,
+        });
+      } catch (error) {
+        console.error("Error fetching user plan:", error);
+        res.status(500).send({ error: error.message });
+      }
+    });
 
     // ==========================================
     // COMPANIES API ROUTES
@@ -148,10 +231,59 @@ async function run() {
     // JOBS API ROUTES
     // ==========================================
 
-    // Create a new job
+    // Create a new job (Enforces Recruiter Plan limits: Free=3, Growth=10, Enterprise=50)
     app.post('/api/jobs', async (req, res) => {
       try {
         const newJob = req.body;
+
+        // Check active job limits for recruiter
+        let recruiterEmail = newJob.recruiterEmail;
+        if (!recruiterEmail && newJob.companyId) {
+          const comp = await companyCollection.findOne({
+            $or: [
+              ...(ObjectId.isValid(newJob.companyId) ? [{ _id: new ObjectId(newJob.companyId) }] : []),
+              { companyId: newJob.companyId },
+            ],
+          });
+          if (comp?.recruiterEmail) {
+            recruiterEmail = comp.recruiterEmail;
+          }
+        }
+
+        if (recruiterEmail) {
+          const recruiterUser = await userCollection.findOne({ email: recruiterEmail });
+          const plan = (recruiterUser?.plan || "free").toLowerCase();
+
+          let maxActiveJobs = 3; // Free: 3 active jobs
+          let planTitle = "Free Plan";
+          if (plan === "growth") {
+            maxActiveJobs = 10;
+            planTitle = "Growth Plan";
+          } else if (plan === "enterprise") {
+            maxActiveJobs = 50;
+            planTitle = "Enterprise Plan";
+          }
+
+          const countQuery = {
+            $or: [
+              { recruiterEmail: recruiterEmail },
+              ...(newJob.companyId ? [{ companyId: newJob.companyId }] : []),
+            ],
+            status: { $ne: "closed" },
+          };
+
+          const activeJobsCount = await jobCollection.countDocuments(countQuery);
+          if (activeJobsCount >= maxActiveJobs) {
+            return res.status(403).send({
+              error: `Active job post limit reached (${activeJobsCount}/${maxActiveJobs}). The ${planTitle} allows up to ${maxActiveJobs} active job posts. Please upgrade your plan or close an older job to post a new one.`,
+              jobLimitReached: true,
+              activeJobsCount,
+              maxActiveJobs,
+              plan,
+            });
+          }
+        }
+
         newJob.createdAt = new Date();
         const result = await jobCollection.insertOne(newJob);
         res.send(result);
@@ -279,8 +411,43 @@ async function run() {
           });
         }
 
+        // Check User Plan & Monthly Application Limit (Free=3, Pro=30, Premium=Unlimited)
+        const applicantUser = await userCollection.findOne({
+          email: applicationData.applicantEmail,
+        });
+        const userPlan = (applicantUser?.plan || "free").toLowerCase();
+
+        let monthlyLimit = 3;
+        let planTitle = "Free Plan";
+        if (userPlan === "pro") {
+          monthlyLimit = 30;
+          planTitle = "Pro Plan";
+        } else if (userPlan === "premium") {
+          monthlyLimit = Infinity;
+          planTitle = "Premium Plan";
+        }
+
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthlyCount = await applicationCollection.countDocuments({
+          applicantEmail: applicationData.applicantEmail,
+          appliedAt: { $gte: startOfMonth },
+        });
+
+        if (monthlyLimit !== Infinity && monthlyCount >= monthlyLimit) {
+          return res.status(403).send({
+            error: `Monthly application limit reached (${monthlyCount}/${monthlyLimit}). You can apply to up to ${monthlyLimit} jobs per month on your ${planTitle}. Please upgrade your plan to apply for more jobs.`,
+            monthlyLimitReached: true,
+            monthlyCount,
+            monthlyLimit,
+            plan: userPlan,
+          });
+        }
+
         const newApplication = {
           ...applicationData,
+          applicantPlan: userPlan,
+          isBoosted: userPlan === "premium", // Premium feature: profile boost to recruiters
           status: "pending",
           appliedAt: new Date(),
           updatedAt: new Date(),
@@ -291,9 +458,88 @@ async function run() {
           success: true,
           insertedId: result.insertedId,
           message: "Application submitted successfully!",
+          applicantPlan: userPlan,
+          monthlyUsed: monthlyCount + 1,
+          monthlyRemaining:
+            monthlyLimit === Infinity
+              ? "Unlimited"
+              : Math.max(0, monthlyLimit - (monthlyCount + 1)),
         });
       } catch (error) {
         console.error("Error submitting application:", error);
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // Get applicant's monthly usage and dynamic plan limit details
+    app.get('/api/applications/monthly-usage', async (req, res) => {
+      try {
+        const { applicantEmail } = req.query;
+        if (!applicantEmail) {
+          return res.status(400).send({ error: "applicantEmail query parameter is required." });
+        }
+
+        const applicantUser = await userCollection.findOne({
+          email: applicantEmail,
+        });
+        const userPlan = (applicantUser?.plan || "free").toLowerCase();
+
+        let monthlyLimit = 3;
+        let planName = "Free";
+        let price = "$0/forever";
+        let features = [
+          "Browse & save up to 10 jobs",
+          "Apply to up to 3 jobs per month",
+          "Basic profile",
+          "Email alerts",
+        ];
+
+        if (userPlan === "pro") {
+          monthlyLimit = 30;
+          planName = "Pro";
+          price = "$19/month";
+          features = [
+            "Apply to up to 30 jobs per month",
+            "Unlimited saved jobs",
+            "Application tracking",
+            "Salary insights",
+          ];
+        } else if (userPlan === "premium") {
+          monthlyLimit = 999999;
+          planName = "Premium";
+          price = "$39/month";
+          features = [
+            "Unlimited job applications",
+            "Profile boost to recruiters",
+            "Early access to new jobs",
+            "Priority support",
+          ];
+        }
+
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthlyCount = await applicationCollection.countDocuments({
+          applicantEmail,
+          appliedAt: { $gte: startOfMonth },
+        });
+
+        const isPremium = userPlan === "premium";
+        const isLimitReached = !isPremium && monthlyCount >= monthlyLimit;
+        const remaining = isPremium ? "Unlimited" : Math.max(0, monthlyLimit - monthlyCount);
+
+        res.send({
+          plan: planName,
+          planKey: userPlan,
+          price,
+          monthlyLimit: isPremium ? "Unlimited" : monthlyLimit,
+          monthlyUsed: monthlyCount,
+          monthlyRemaining: remaining,
+          isLimitReached,
+          isPremium,
+          features,
+        });
+      } catch (error) {
+        console.error("Error fetching monthly usage:", error);
         res.status(500).send({ error: error.message });
       }
     });

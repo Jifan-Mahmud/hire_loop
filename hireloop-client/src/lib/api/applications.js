@@ -59,3 +59,21 @@ export async function getCandidateApplications(applicantEmail) {
     return [];
   }
 }
+
+/**
+ * Fetch candidate monthly application quota and usage
+ */
+export async function getMonthlyApplicationUsage(applicantEmail) {
+  if (!applicantEmail) return null;
+  try {
+    const res = await fetch(
+      `${baseUrl}/api/applications/monthly-usage?applicantEmail=${encodeURIComponent(applicantEmail)}`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    console.error("Error fetching monthly usage:", error);
+    return null;
+  }
+}
