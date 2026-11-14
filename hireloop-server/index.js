@@ -115,11 +115,13 @@ async function run() {
     // COMPANIES API ROUTES
     // ==========================================
 
-    // Register a new company
+    // Register a new company (defaults to Free Plan)
     app.post('/api/companies', async (req, res) => {
       try {
         const companyData = req.body;
         companyData.status = companyData.status || "pending"; // always start pending until admin approves
+        companyData.plan = companyData.plan || "free";
+        companyData.planId = companyData.planId || "recruiter-free";
         companyData.createdAt = new Date();
         companyData.updatedAt = new Date();
         const result = await companyCollection.insertOne(companyData);
@@ -130,7 +132,7 @@ async function run() {
       }
     });
 
-    // Get company for recruiter (strictly by email or userId)
+    // Get company for recruiter (strictly by email or userId, syncs plan)
     app.get('/api/companies/my-company', async (req, res) => {
       try {
         const { email, userId } = req.query;
@@ -169,6 +171,18 @@ async function run() {
         if (!company) {
           return res.status(404).send({ error: "No company registered yet for this user" });
         }
+
+        // Sync active plan from recruiter user record (defaults to "free")
+        const recruiterUser = await userCollection.findOne({
+          $or: [
+            ...(email ? [{ email }] : []),
+            ...(userId ? [{ id: userId }] : []),
+            ...(company.recruiterEmail ? [{ email: company.recruiterEmail }] : []),
+          ],
+        });
+        company.plan = recruiterUser?.plan || company.plan || "free";
+        company.planId = recruiterUser?.planId || company.planId || "recruiter-free";
+
         res.send(company);
       } catch (error) {
         console.error("Error fetching my-company:", error);

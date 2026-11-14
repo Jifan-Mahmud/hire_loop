@@ -68,9 +68,16 @@ export default function Navbar() {
           {user ? (
             <>
               <div className="flex items-center gap-3">
+                <Link
+                  href={user?.role === "recruiter" ? "/deshboard/recruiter" : "/deshboard/seekers"}
+                  className="text-sm font-medium text-neutral-300 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition"
+                >
+                  Dashboard
+                </Link>
+
                 {/* User Profile */}
                 <Link
-                  href="/profile"
+                  href={user?.role === "recruiter" ? "/deshboard/recruiter" : "/deshboard/seekers/settings"}
                   className="group flex items-center gap-2.5 rounded-full px-2 py-1.5 transition hover:bg-white/5"
                 >
                   {/* Avatar */}
@@ -175,21 +182,45 @@ export default function Navbar() {
               </Link>
             ))}
 
-            <Link
-              href="/signin"
-              onClick={() => setIsMenuOpen(false)}
-              className="py-4 text-indigo-400"
-            >
-              Sign In
-            </Link>
+            {user ? (
+              <>
+                <Link
+                  href={user?.role === "recruiter" ? "/deshboard/recruiter" : "/deshboard/seekers"}
+                  onClick={() => setIsMenuOpen(false)}
+                  className="border-b border-white/10 py-4 text-purple-400 font-medium"
+                >
+                  Dashboard
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    handleSignOut();
+                  }}
+                  className="py-4 text-left text-red-400"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/signin"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="py-4 text-indigo-400"
+                >
+                  Sign In
+                </Link>
 
-            <Link
-              href="/signup"
-              onClick={() => setIsMenuOpen(false)}
-              className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 font-medium text-white"
-            >
-              Get Started
-            </Link>
+                <Link
+                  href="/signup"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 font-medium text-white"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

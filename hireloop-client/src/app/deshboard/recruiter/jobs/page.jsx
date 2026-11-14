@@ -18,6 +18,11 @@ const RecruiterJobsPage = async () => {
     redirect("/signin");
   }
 
+  // Restrict to Recruiter only: Seekers are redirected to their dashboard
+  if (session.user.role !== "recruiter") {
+    redirect("/deshboard/seekers");
+  }
+
   const user = session.user;
 
   // Dynamically fetch company profile belonging to this logged-in recruiter

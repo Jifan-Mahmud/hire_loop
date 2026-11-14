@@ -10,17 +10,21 @@ import {
   Bell,
   Gear,
   Briefcase,
+  LayoutCells,
+  Magnifier,
+  Bookmark,
+  FileText,
+  CreditCard,
 } from "@gravity-ui/icons";
 
 import { Button, Drawer } from "@heroui/react";
-
 import { authClient } from "@/lib/auth-client";
 
 /* --------------------------------------------------
    Navigation items
 -------------------------------------------------- */
 
-const navItems = [
+const recruiterNavItems = [
   {
     icon: House,
     label: "Dashboard",
@@ -53,6 +57,39 @@ const navItems = [
   },
 ];
 
+const seekerNavItems = [
+  {
+    icon: LayoutCells,
+    label: "Dashboard",
+    href: "/deshboard/seekers",
+  },
+  {
+    icon: Magnifier,
+    label: "Jobs",
+    href: "/jobs",
+  },
+  {
+    icon: Bookmark,
+    label: "Saved Jobs",
+    href: "/deshboard/seekers/saved-jobs",
+  },
+  {
+    icon: FileText,
+    label: "Applications",
+    href: "/deshboard/seekers/applications",
+  },
+  {
+    icon: CreditCard,
+    label: "Billing",
+    href: "/pricing",
+  },
+  {
+    icon: Gear,
+    label: "Settings",
+    href: "/deshboard/seekers/settings",
+  },
+];
+
 /* --------------------------------------------------
    Animation
 -------------------------------------------------- */
@@ -74,7 +111,6 @@ const itemVariants = {
     opacity: 0,
     x: -10,
   },
-
   show: {
     opacity: 1,
     x: 0,
@@ -102,17 +138,98 @@ function Logo() {
 }
 
 /* --------------------------------------------------
-   Navigation
+   Seeker Portal Card (Matches reference design)
 -------------------------------------------------- */
 
-function NavList({ id }) {
+function SeekerProfileWidget() {
+  const { data: session } = authClient.useSession();
+  const user = session?.user;
+
+  const plan = user?.plan || "free";
+  const tierLabel =
+    plan === "premium"
+      ? "Premium Tier"
+      : plan === "pro"
+      ? "Professional Tier"
+      : "Free Tier";
+
+  const initial = (user?.name || "Seeker").charAt(0).toUpperCase();
+
+  return (
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 hover:border-white/20 transition-all">
+      <div className="relative shrink-0">
+        {user?.image ? (
+          <img
+            src={user.image}
+            alt={user?.name || "Seeker"}
+            className="size-10 rounded-full object-cover border border-white/10"
+          />
+        ) : (
+          <div className="size-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-sm font-bold text-white border border-white/10">
+            {initial}
+          </div>
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-white truncate">
+          Seeker Portal
+        </p>
+        <p className="text-[11px] font-normal text-neutral-400 truncate">
+          {tierLabel}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------------------------------
+   Recruiter User Profile
+-------------------------------------------------- */
+
+function RecruiterUserCard() {
+  const { data: session } = authClient.useSession();
+  const name = session?.user?.name || "Your account";
+  const role = "Recruiter";
+  const avatar = session?.user?.image || null;
+  const initial = name.trim().charAt(0).toUpperCase();
+
+  return (
+    <div className="flex w-full flex-col items-center px-2 text-center">
+      {avatar ? (
+        <img
+          src={avatar}
+          alt={name}
+          className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-white/10"
+        />
+      ) : (
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-[13px] font-semibold text-white">
+          {initial}
+        </div>
+      )}
+
+      <p className="mt-2.5 max-w-full truncate px-2 text-[13px] font-medium leading-tight text-white">
+        {name}
+      </p>
+      <p className="mt-1 text-[10px] font-normal leading-none text-white/40">
+        {role}
+      </p>
+    </div>
+  );
+}
+
+/* --------------------------------------------------
+   Navigation List
+-------------------------------------------------- */
+
+function NavList({ id, isSeeker }) {
   const pathname = usePathname();
+  const navItems = isSeeker ? seekerNavItems : recruiterNavItems;
 
   const isActive = (href) => {
-    if (href === "/dashboard") {
+    if (href === "/deshboard/seekers" || href === "/deshboard/recruiter") {
       return pathname === href;
     }
-
     return pathname.startsWith(href);
   };
 
@@ -128,33 +245,19 @@ function NavList({ id }) {
         const Icon = item.icon;
 
         return (
-          <motion.div
-            key={item.href}
-            variants={itemVariants}
-            className="w-full"
-          >
+          <motion.div key={item.href} variants={itemVariants} className="w-full">
             <Link
               href={item.href}
               className={`
-                group relative flex h-10 w-full
-                items-center
-                justify-start
-                gap-3
-                rounded-sm
-                px-4
-                text-[13px]
-                font-normal
-                transition-all
-                duration-200
-
+                group relative flex h-10 w-full items-center justify-start gap-3 rounded-xl px-4 text-[13px] font-medium transition-all duration-200
                 ${
                   active
-                    ? "bg-white/[0.08] text-white"
-                    : "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
+                    ? "bg-white/[0.08] text-white shadow-sm"
+                    : "text-white/40 hover:bg-white/[0.04] hover:text-white/80"
                 }
               `}
             >
-              {/* Active right border */}
+              {/* Active right bar */}
               {active && (
                 <motion.span
                   layoutId={`${id}-active-bar`}
@@ -163,40 +266,19 @@ function NavList({ id }) {
                     stiffness: 380,
                     damping: 32,
                   }}
-                  className="
-                    absolute
-                    right-0
-                    top-0
-                    h-full
-                    w-[3px]
-                    rounded-l-sm
-                    bg-white
-                  "
+                  className="absolute right-0 top-0 h-full w-[3px] rounded-l-sm bg-purple-500"
                 />
               )}
 
               {/* Icon */}
               <Icon
-                className={`
-                  relative
-                  z-10
-                  size-[16px]
-                  shrink-0
-                  transition-colors
-                  duration-200
-
-                  ${
-                    active
-                      ? "text-white"
-                      : "text-white/40 group-hover:text-white/70"
-                  }
-                `}
+                className={`size-[16px] shrink-0 transition-colors duration-200 ${
+                  active ? "text-white" : "text-white/40 group-hover:text-white/80"
+                }`}
               />
 
               {/* Label */}
-              <span className="relative z-10 truncate">
-                {item.label}
-              </span>
+              <span className="truncate">{item.label}</span>
             </Link>
           </motion.div>
         );
@@ -206,219 +288,49 @@ function NavList({ id }) {
 }
 
 /* --------------------------------------------------
-   User Profile
--------------------------------------------------- */
-
-function UserCard() {
-  const router = useRouter();
-
-  const { data: session } = authClient.useSession();
-
-  const name = session?.user?.name || "Your account";
-
-  const role =
-    session?.user?.role === "recruiter"
-      ? "Recruiter"
-      : "Job Seeker";
-
-  const avatar =
-    session?.user?.image ||
-    session?.user?.avatar ||
-    null;
-
-  const initial = name
-    .trim()
-    .charAt(0)
-    .toUpperCase();
-
-  const handleSignOut = async () => {
-    try {
-      await authClient.signOut({
-        fetchOptions: {
-          onSuccess: () => {
-            router.push("/signin");
-          },
-        },
-      });
-    } catch (err) {
-      console.error("Sign out error:", err);
-      router.push("/signin");
-    }
-  };
-
-  return (
-    <motion.div
-      initial={{
-        opacity: 0,
-        y: 10,
-      }}
-      animate={{
-        opacity: 1,
-        y: 0,
-      }}
-      transition={{
-        delay: 0.35,
-        duration: 0.4,
-        ease,
-      }}
-      className="flex w-full flex-col items-center px-2"
-    >
-      {/* Profile */}
-      <div className="flex w-full flex-col items-center text-center">
-        {/* Avatar */}
-        {avatar ? (
-          <img
-            src={avatar}
-            alt={name}
-            className="
-              h-11
-              w-11
-              shrink-0
-              rounded-full
-              object-cover
-              ring-1
-              ring-white/10
-            "
-          />
-        ) : (
-          <div
-            className="
-              flex
-              h-11
-              w-11
-              shrink-0
-              items-center
-              justify-center
-              rounded-full
-              bg-gradient-to-br
-              from-indigo-500
-              to-purple-500
-              text-[13px]
-              font-semibold
-              text-white
-            "
-          >
-            {initial}
-          </div>
-        )}
-
-        {/* Name */}
-        <p
-          className="
-            mt-2.5
-            max-w-full
-            truncate
-            px-2
-            text-[13px]
-            font-medium
-            leading-tight
-            text-white
-          "
-        >
-          {name}
-        </p>
-
-        {/* Role */}
-        <p
-          className="
-            mt-1
-            text-[10px]
-            font-normal
-            leading-none
-            text-white/40
-          "
-        >
-          {role}
-        </p>
-      </div>
-
-      {/* Premium badge */}
-      <div className="mt-2.5">
-        <span
-          className="
-            inline-flex
-            items-center
-            justify-center
-            rounded-[2px]
-            border
-            border-white/20
-            bg-white/[0.08]
-            px-2
-            py-1
-            text-[8px]
-            font-medium
-            uppercase
-            tracking-wide
-            text-white/70
-          "
-        >
-          Premium Account
-        </span>
-      </div>
-    </motion.div>
-  );
-}
-
-/* --------------------------------------------------
-   Sidebar
+   Main Dashboard Sidebar Export
 -------------------------------------------------- */
 
 const DashboardSideBar = () => {
+  const pathname = usePathname();
+  const { data: session } = authClient.useSession();
+  const user = session?.user;
+
+  // Determine if this is a seeker portal view
+  const isSeeker =
+    pathname.includes("/seekers") || user?.role === "seeker" || !pathname.includes("/recruiter");
+
   return (
     <MotionConfig reducedMotion="user">
-      <div className="min-h-screen bg-[#111111] text-white">
-
+      <div className="min-h-screen bg-[#0d0d11] text-white">
         {/* ==========================================
             Desktop Sidebar
         ========================================== */}
-
-        <aside
-          className="
-            z-40
-            hidden
-            w-[260px]
-            flex-col
-            border-r
-            border-white/[0.08]
-            bg-[#111111]
-            px-4
-            py-6
-            lg:flex
-          "
-        >
+        <aside className="z-40 hidden w-[250px] flex-col border-r border-white/[0.08] bg-[#0d0d11] px-4 py-6 lg:flex sticky top-20 h-[calc(100vh-80px)] overflow-y-auto">
           {/* Logo */}
-          <div className="flex w-full justify-center">
+          <div className="flex w-full justify-start px-2">
             <Logo />
           </div>
 
-          {/* User */}
-          <div className="mt-7">
-            <UserCard />
+          {/* User Widget */}
+          <div className="mt-6 w-full">
+            {isSeeker ? <SeekerProfileWidget /> : <RecruiterUserCard />}
           </div>
 
           {/* Navigation */}
-          <div className="mt-9 w-full">
-            <NavList id="desktop" />
+          <div className="mt-7 w-full">
+            <NavList id="desktop" isSeeker={isSeeker} />
           </div>
         </aside>
 
         {/* ==========================================
-            Mobile / Tablet
+            Mobile / Tablet Drawer
         ========================================== */}
-
-        <div className="fixed left-0 top-0 z-50 p-4 lg:hidden">
+        <div className="fixed left-0 top-20 z-50 p-4 lg:hidden">
           <Drawer>
             <Button
               variant="secondary"
-              className="
-                h-10
-                border
-                border-white/10
-                bg-[#171717]
-                px-3
-                text-[13px]
-                text-white
-              "
+              className="h-10 border border-white/10 bg-[#171717] px-3 text-[13px] text-white"
             >
               <LayoutSideContent className="size-4" />
               <span>Menu</span>
@@ -426,40 +338,24 @@ const DashboardSideBar = () => {
 
             <Drawer.Backdrop>
               <Drawer.Content placement="left">
-                <Drawer.Dialog
-                  className="
-                    w-[260px]
-                    border-r
-                    border-white/10
-                    bg-[#111111]
-                    text-white
-                  "
-                >
+                <Drawer.Dialog className="w-[260px] border-r border-white/10 bg-[#0d0d11] text-white">
                   <Drawer.CloseTrigger />
 
-                  <Drawer.Header
-                    className="
-                      flex
-                      justify-center
-                      px-5
-                      py-6
-                    "
-                  >
+                  <Drawer.Header className="flex justify-start px-5 py-6">
                     <Drawer.Heading className="sr-only">
                       Navigation
                     </Drawer.Heading>
-
                     <Logo />
                   </Drawer.Header>
 
                   <Drawer.Body className="px-4">
                     {/* User */}
-                    <div className="mb-9">
-                      <UserCard />
+                    <div className="mb-7">
+                      {isSeeker ? <SeekerProfileWidget /> : <RecruiterUserCard />}
                     </div>
 
                     {/* Navigation */}
-                    <NavList id="mobile" />
+                    <NavList id="mobile" isSeeker={isSeeker} />
                   </Drawer.Body>
                 </Drawer.Dialog>
               </Drawer.Content>

@@ -16,7 +16,6 @@ import {
   SlidersVertical,
   Xmark,
   ArrowUpRightFromSquare,
-  Building,
   TriangleExclamation,
 } from "@gravity-ui/icons";
 import { useSession, authClient } from "@/lib/auth-client";

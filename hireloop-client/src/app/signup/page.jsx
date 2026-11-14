@@ -82,9 +82,13 @@ function SignupContent() {
     try {
       setLoading(true);
 
+      const targetPlanId = formData.role === "recruiter" ? "recruiter-free" : "seeker-free";
+
       const { data, error } = await authClient.signUp.email({
         name: formData.name.trim(),
         role: formData.role,
+        plan: "free",
+        planId: targetPlanId,
         email: formData.email.trim(),
         password: formData.password,
         callbackURL: "/",
@@ -113,7 +117,7 @@ function SignupContent() {
         if (formData.role === "recruiter") {
           window.location.href = "/deshboard/recruiter";
         } else {
-          window.location.href = "/jobs";
+          window.location.href = "/deshboard/seekers";
         }
       } catch (signErr) {
         // If automatic signin was not immediate, redirect to signin page

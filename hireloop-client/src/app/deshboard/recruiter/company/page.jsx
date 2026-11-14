@@ -12,9 +12,14 @@ const RecruiterCompanyPage = async () => {
     headers: await headers(),
   });
 
-  // If user is not authenticated (signed out), redirect to signin
+  // If user is not authenticated, redirect to signin
   if (!session || !session.user) {
     redirect("/signin");
+  }
+
+  // Restrict to Recruiter only: Seekers are redirected to their dashboard
+  if (session.user.role !== "recruiter") {
+    redirect("/deshboard/seekers");
   }
 
   const user = session.user;

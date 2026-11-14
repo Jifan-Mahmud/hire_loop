@@ -1,0 +1,166 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import {
+  FileText,
+  Calendar,
+  Clock,
+  ArrowRight,
+  CircleCheck,
+  Briefcase,
+} from "@gravity-ui/icons";
+import { useSession } from "@/lib/auth-client";
+import { getCandidateApplications } from "@/lib/api/applications";
+
+export default function SeekerApplicationsPage() {
+  const { data: session } = useSession();
+  const user = session?.user;
+
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadApps() {
+      if (!user?.email) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const data = await getCandidateApplications(user.email);
+        setApplications(data || []);
+      } catch (err) {
+        console.error("Error fetching applications:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadApps();
+  }, [user?.email]);
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case "under_review":
+      case "reviewing":
+        return "bg-amber-500/15 text-amber-400 border-amber-500/30";
+      case "shortlisted":
+        return "bg-blue-500/15 text-blue-400 border-blue-500/30";
+      case "rejected":
+        return "bg-red-500/15 text-red-400 border-red-500/30";
+      case "offered":
+      case "accepted":
+        return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+      default:
+        return "bg-purple-500/15 text-purple-300 border-purple-500/30";
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0d0d11] text-white p-4 sm:p-6 lg:p-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/[0.08]">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            My Applications
+          </h1>
+          <p className="text-xs sm:text-sm text-neutral-400 mt-1">
+            Track and monitor the status of all your submitted job applications.
+          </p>
+        </div>
+
+        <Link
+          href="/jobs"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-xs sm:text-sm font-semibold hover:from-purple-500 hover:to-indigo-500 transition-all shadow-lg shadow-purple-600/20"
+        >
+          <span>Browse More Jobs</span>
+          <ArrowRight className="size-4" />
+        </Link>
+      </div>
+
+      {/* Applications list */}
+      <div className="mt-8 space-y-4">
+        {loading ? (
+          <div className="text-center py-16 text-neutral-400">
+            <div className="w-8 h-8 rounded-full border-2 border-purple-500 border-t-transparent animate-spin mx-auto mb-3" />
+            <p className="text-sm">Loading your applications...</p>
+          </div>
+        ) : applications.length === 0 ? (
+          <div className="rounded-2xl bg-[#141418] border border-white/[0.08] p-12 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4 text-neutral-400">
+              <FileText className="size-6" />
+            </div>
+            <h3 className="text-lg font-semibold text-white">
+              No applications yet
+            </h3>
+            <p className="text-sm text-neutral-400 max-w-sm mx-auto mt-2 mb-6">
+              You haven&apos;t submitted any job applications yet. Explore openings and apply directly.
+            </p>
+            <Link
+              href="/jobs"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-black font-semibold text-xs sm:text-sm hover:bg-neutral-200 transition-colors"
+            >
+              Browse Open Jobs
+            </Link>
+          </div>
+        ) : (
+          applications.map((app) => (
+            <div
+              key={app._id}
+              className="rounded-2xl bg-[#141418] border border-white/[0.08] p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-5 hover:border-white/20 transition-all"
+            >
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="text-base sm:text-lg font-bold text-white">
+                    {app.jobTitle || "Software Engineer"}
+                  </h3>
+                  <span
+                    className={`px-3 py-1 rounded-full text-[11px] font-semibold border capitalize ${getStatusBadge(
+                      app.status
+                    )}`}
+                  >
+                    {app.status ? app.status.replace("_", " ") : "Pending"}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-neutral-400">
+                  <span className="flex items-center gap-1.5">
+                    <Briefcase className="size-3.5 text-neutral-500" />
+                    <span>{app.companyName || "Company"}</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="size-3.5 text-neutral-500" />
+                    <span>
+                      Applied:{" "}
+                      {app.appliedAt
+                        ? new Date(app.appliedAt).toLocaleDateString()
+                        : "Recently"}
+                    </span>
+                  </span>
+                  {app.resumeUrl && (
+                    <a
+                      href={app.resumeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-purple-400 hover:text-purple-300 underline font-medium"
+                    >
+                      View Submitted Resume
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Link
+                  href={`/jobs/${app.jobId}`}
+                  className="px-4 py-2 rounded-xl border border-white/10 hover:border-white/20 text-xs sm:text-sm font-medium text-neutral-200 hover:text-white transition-all text-center"
+                >
+                  View Job Details
+                </Link>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}

@@ -86,7 +86,7 @@ function SignInContent() {
       if (data?.user?.role === "recruiter") {
         window.location.href = "/deshboard/recruiter";
       } else {
-        window.location.href = "/jobs";
+        window.location.href = "/deshboard/seekers";
       }
     } catch (err) {
       console.error("Sign in error:", err);

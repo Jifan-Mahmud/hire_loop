@@ -11,14 +11,17 @@ const PLAN_CATALOG = {
   'seeker-premium': {
     name: 'HireLoop Premium (Job Seeker)',
     amount: 3900,
+    priceId: 'price_1UZmHiBipP3qNP054VjKWZZ9', // User's created stripe price ID
   },
   'recruiter-growth': {
     name: 'HireLoop Growth (Recruiter)',
     amount: 4900,
+    priceId: 'price_1UZmJgBipP3qNP055oEo5vm2', // User's created stripe price ID
   },
   'recruiter-enterprise': {
     name: 'HireLoop Enterprise (Recruiter)',
     amount: 14900,
+    priceId: 'price_1UZmKNBipP3qNP05DNeghAiA', // User's created stripe price ID
   },
 };
 
@@ -65,7 +68,6 @@ export async function POST(request) {
 
     // Create Checkout Session
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
       line_items: [lineItem],
       mode: 'subscription',
       success_url: `${origin}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
