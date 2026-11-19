@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Person, Envelope, Lock, Gear, CircleCheck } from "@gravity-ui/icons";
 import { useSession } from "@/lib/auth-client";
+import SessionTokenVerifier from "@/components/Security/SessionTokenVerifier";
 
 export default function SeekerSettingsPage() {
   const { data: session } = useSession();
@@ -60,6 +61,9 @@ export default function SeekerSettingsPage() {
             Upgrade or Manage Plan
           </a>
         </div>
+
+        {/* Token-Based User Verification Showcase (No JWT) */}
+        <SessionTokenVerifier />
 
         {/* Profile edit form */}
         <form

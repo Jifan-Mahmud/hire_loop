@@ -11,15 +11,22 @@ export default function DashboardLayout({ children }) {
   const { data: session, isPending } = useSession();
   const user = session?.user;
 
-  // Strict role check:
-  // 1. Not signed in
-  // 2. Seeker trying to access recruiter dashboard
-  // 3. Recruiter trying to access seeker dashboard
+  const isAdmin = user?.role === "admin";
+  const isSeeker = !isAdmin && user?.role === "seeker";
+  const isRecruiter = !isAdmin && user?.role === "recruiter";
+
+  // Strict role checks:
+  const isNonAdminInAdminArea = !isAdmin && pathname.startsWith("/deshboard/admin");
+  const isSeekerInRecruiterArea = isSeeker && pathname.startsWith("/deshboard/recruiter");
+  const isRecruiterInSeekerArea = isRecruiter && pathname.startsWith("/deshboard/seekers");
+  const isUnauthenticated = !user;
+
   const isUnauthorized =
     !isPending &&
-    (!user ||
-      (user?.role === "seeker" && pathname.startsWith("/deshboard/recruiter")) ||
-      (user?.role === "recruiter" && pathname.startsWith("/deshboard/seekers")));
+    (isUnauthenticated ||
+      isNonAdminInAdminArea ||
+      isSeekerInRecruiterArea ||
+      isRecruiterInSeekerArea);
 
   useEffect(() => {
     if (isPending) return;
@@ -30,18 +37,37 @@ export default function DashboardLayout({ children }) {
       return;
     }
 
-    // 2. Seeker attempting to access recruiter portal: redirect to seeker dashboard
-    if (user.role === "seeker" && pathname.startsWith("/deshboard/recruiter")) {
+    // 2. Non-admin trying to access admin dashboard
+    if (isNonAdminInAdminArea) {
+      if (user.role === "recruiter") {
+        router.replace("/deshboard/recruiter");
+      } else {
+        router.replace("/deshboard/seekers");
+      }
+      return;
+    }
+
+    // 3. Seeker attempting to access recruiter portal: redirect to seeker dashboard
+    if (isSeeker && pathname.startsWith("/deshboard/recruiter")) {
       router.replace("/deshboard/seekers");
       return;
     }
 
-    // 3. Recruiter attempting to access seeker portal: redirect to recruiter dashboard
-    if (user.role === "recruiter" && pathname.startsWith("/deshboard/seekers")) {
+    // 4. Recruiter attempting to access seeker portal: redirect to recruiter dashboard
+    if (isRecruiter && pathname.startsWith("/deshboard/seekers")) {
       router.replace("/deshboard/recruiter");
       return;
     }
-  }, [user, isPending, pathname, router]);
+  }, [
+    user,
+    isPending,
+    pathname,
+    router,
+    isAdmin,
+    isSeeker,
+    isRecruiter,
+    isNonAdminInAdminArea,
+  ]);
 
   // Prevent flashing or loading even a single millisecond of unauthorized content
   if (isPending || isUnauthorized) {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { motion, MotionConfig } from "motion/react";
 
 import {
@@ -15,6 +15,7 @@ import {
   Bookmark,
   FileText,
   CreditCard,
+  Persons,
 } from "@gravity-ui/icons";
 
 import { Button, Drawer } from "@heroui/react";
@@ -23,6 +24,39 @@ import { authClient } from "@/lib/auth-client";
 /* --------------------------------------------------
    Navigation items
 -------------------------------------------------- */
+
+const adminNavItems = [
+  {
+    icon: LayoutCells,
+    label: "Dashboard",
+    href: "/deshboard/admin",
+  },
+  {
+    icon: Persons,
+    label: "Users",
+    href: "/deshboard/admin/users",
+  },
+  {
+    icon: LayoutSideContent,
+    label: "Companies",
+    href: "/deshboard/admin/companies",
+  },
+  {
+    icon: Briefcase,
+    label: "Jobs",
+    href: "/deshboard/admin/jobs",
+  },
+  {
+    icon: CreditCard,
+    label: "Payments",
+    href: "/deshboard/admin/payments",
+  },
+  {
+    icon: Gear,
+    label: "Settings",
+    href: "/deshboard/admin/settings",
+  },
+];
 
 const recruiterNavItems = [
   {
@@ -184,36 +218,40 @@ function SeekerProfileWidget() {
 }
 
 /* --------------------------------------------------
-   Recruiter User Profile
+   Recruiter User Card
 -------------------------------------------------- */
 
 function RecruiterUserCard() {
   const { data: session } = authClient.useSession();
-  const name = session?.user?.name || "Your account";
+  const user = session?.user;
+
   const role = "Recruiter";
-  const avatar = session?.user?.image || null;
-  const initial = name.trim().charAt(0).toUpperCase();
+  const initial = (user?.name || "User").charAt(0).toUpperCase();
 
   return (
-    <div className="flex w-full flex-col items-center px-2 text-center">
-      {avatar ? (
-        <img
-          src={avatar}
-          alt={name}
-          className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-white/10"
-        />
-      ) : (
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-[13px] font-semibold text-white">
-          {initial}
-        </div>
-      )}
+    <div className="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3 text-white border border-white/10">
+      <div className="relative">
+        {user?.image ? (
+          <img
+            src={user.image}
+            alt={user?.name || "User"}
+            className="size-11 rounded-full object-cover border border-white/10"
+          />
+        ) : (
+          <div className="size-11 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-base font-semibold text-white border border-white/10">
+            {initial}
+          </div>
+        )}
+      </div>
 
-      <p className="mt-2.5 max-w-full truncate px-2 text-[13px] font-medium leading-tight text-white">
-        {name}
-      </p>
-      <p className="mt-1 text-[10px] font-normal leading-none text-white/40">
-        {role}
-      </p>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold leading-tight text-white">
+          {user?.name || "HireLoop Recruiter"}
+        </p>
+        <p className="truncate text-xs text-neutral-400">
+          {role}
+        </p>
+      </div>
     </div>
   );
 }
@@ -222,12 +260,21 @@ function RecruiterUserCard() {
    Navigation List
 -------------------------------------------------- */
 
-function NavList({ id, isSeeker }) {
+function NavList({ id, roleType }) {
   const pathname = usePathname();
-  const navItems = isSeeker ? seekerNavItems : recruiterNavItems;
+  const navItems =
+    roleType === "admin"
+      ? adminNavItems
+      : roleType === "seeker"
+      ? seekerNavItems
+      : recruiterNavItems;
 
   const isActive = (href) => {
-    if (href === "/deshboard/seekers" || href === "/deshboard/recruiter") {
+    if (
+      href === "/deshboard/seekers" ||
+      href === "/deshboard/recruiter" ||
+      href === "/deshboard/admin"
+    ) {
       return pathname === href;
     }
     return pathname.startsWith(href);
@@ -296,9 +343,14 @@ const DashboardSideBar = () => {
   const { data: session } = authClient.useSession();
   const user = session?.user;
 
-  // Determine if this is a seeker portal view
-  const isSeeker =
-    pathname.includes("/seekers") || user?.role === "seeker" || !pathname.includes("/recruiter");
+  // Determine current portal role
+  const isAdmin =
+    user?.role === "admin" ||
+    pathname.startsWith("/deshboard/admin");
+  const isRecruiter =
+    !isAdmin &&
+    (user?.role === "recruiter" || pathname.startsWith("/deshboard/recruiter"));
+  const roleType = isAdmin ? "admin" : isRecruiter ? "recruiter" : "seeker";
 
   return (
     <MotionConfig reducedMotion="user">
@@ -307,20 +359,55 @@ const DashboardSideBar = () => {
             Desktop Sidebar
         ========================================== */}
         <aside className="z-40 hidden w-[250px] flex-col border-r border-white/[0.08] bg-[#0d0d11] px-4 py-6 lg:flex sticky top-20 h-[calc(100vh-80px)] overflow-y-auto">
-          {/* Logo */}
-          <div className="flex w-full justify-start px-2">
+          {/* Logo area */}
+          <div className="flex w-full flex-col px-2">
             <Logo />
+            {isAdmin && (
+              <span className="text-[11px] font-medium text-neutral-400 mt-0.5 tracking-wide">
+                Admin Console
+              </span>
+            )}
           </div>
 
-          {/* User Widget */}
-          <div className="mt-6 w-full">
-            {isSeeker ? <SeekerProfileWidget /> : <RecruiterUserCard />}
-          </div>
+          {/* User Widget for Seeker & Recruiter */}
+          {!isAdmin && (
+            <div className="mt-6 w-full">
+              {roleType === "seeker" ? <SeekerProfileWidget /> : <RecruiterUserCard />}
+            </div>
+          )}
 
           {/* Navigation */}
-          <div className="mt-7 w-full">
-            <NavList id="desktop" isSeeker={isSeeker} />
+          <div className={`${isAdmin ? "mt-6" : "mt-7"} w-full`}>
+            <NavList id="desktop" roleType={roleType} />
           </div>
+
+          {/* Admin Bottom Profile Card (Matches Reference Image) */}
+          {isAdmin && (
+            <div className="mt-auto pt-4 border-t border-white/[0.08] px-2 flex items-center gap-3">
+              <div className="size-9 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden border border-white/10">
+                {user?.image ? (
+                  <img
+                    src={user.image}
+                    alt={user?.name || "Admin"}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  (user?.name || "Alex Rivera")
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white truncate">
+                  {user?.name || "Alex Rivera"}
+                </p>
+                <p className="text-[11px] text-neutral-400 truncate">System Admin</p>
+              </div>
+            </div>
+          )}
         </aside>
 
         {/* ==========================================
@@ -341,21 +428,52 @@ const DashboardSideBar = () => {
                 <Drawer.Dialog className="w-[260px] border-r border-white/10 bg-[#0d0d11] text-white">
                   <Drawer.CloseTrigger />
 
-                  <Drawer.Header className="flex justify-start px-5 py-6">
+                  <Drawer.Header className="flex flex-col justify-start px-5 py-6">
                     <Drawer.Heading className="sr-only">
                       Navigation
                     </Drawer.Heading>
                     <Logo />
+                    {isAdmin && (
+                      <span className="text-[11px] font-medium text-neutral-400 mt-0.5 tracking-wide">
+                        Admin Console
+                      </span>
+                    )}
                   </Drawer.Header>
 
-                  <Drawer.Body className="px-4">
-                    {/* User */}
-                    <div className="mb-7">
-                      {isSeeker ? <SeekerProfileWidget /> : <RecruiterUserCard />}
-                    </div>
+                  <Drawer.Body className="px-4 flex flex-col h-full">
+                    {!isAdmin && (
+                      <div className="mb-7">
+                        {roleType === "seeker" ? (
+                          <SeekerProfileWidget />
+                        ) : (
+                          <RecruiterUserCard />
+                        )}
+                      </div>
+                    )}
 
-                    {/* Navigation */}
-                    <NavList id="mobile" isSeeker={isSeeker} />
+                    <NavList id="mobile" roleType={roleType} />
+
+                    {isAdmin && (
+                      <div className="mt-auto pt-4 border-t border-white/[0.08] px-2 flex items-center gap-3">
+                        <div className="size-9 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden">
+                          {user?.image ? (
+                            <img
+                              src={user.image}
+                              alt={user?.name || "Admin"}
+                              className="size-full object-cover"
+                            />
+                          ) : (
+                            "AR"
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-white truncate">
+                            {user?.name || "Alex Rivera"}
+                          </p>
+                          <p className="text-[11px] text-neutral-400 truncate">System Admin</p>
+                        </div>
+                      </div>
+                    )}
                   </Drawer.Body>
                 </Drawer.Dialog>
               </Drawer.Content>

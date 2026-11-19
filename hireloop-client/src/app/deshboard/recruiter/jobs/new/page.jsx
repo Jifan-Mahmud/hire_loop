@@ -243,7 +243,7 @@ export default function NewJobPage() {
     };
   }, [session?.user?.email, session?.user?.id, sessionLoading]);
 
-  const canPost = companyStatus === "ready" && company && company.status !== "rejected";
+  const canPost = companyStatus === "ready" && company && company.status === "approved";
 
   /* Field validators (TextField `validate` runs on submit with native behavior) */
   const validateMax = (v) => {
@@ -267,14 +267,17 @@ export default function NewJobPage() {
     console.log("Company:", company);
     console.log("Can Post:", canPost);
 
-    if (!canPost) {
-      console.log("Company is not approved yet.");
+    if (!company) {
+      setSubmitError("Company profile not found. Please register your company before posting jobs.");
       return;
     }
 
-    const dynamicCompanyId = company?._id ? company._id.toString() : company?.id;
-    if (!dynamicCompanyId) {
-      setSubmitError("Company profile not found. Please register your company before posting jobs.");
+    if (company.status !== "approved") {
+      setSubmitError(
+        `Your company (${company.name}) is currently ${
+          company.status === "pending" ? "pending administrator review" : company.status
+        }. Job posting is locked until an administrator approves your company registration.`
+      );
       return;
     }
 
@@ -353,6 +356,18 @@ export default function NewJobPage() {
                 <CompanyBanner company={company} status={companyStatus} />
               </Fieldset.Group>
             </Fieldset>
+
+            {company?.status === "pending" && (
+              <div className="flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+                <TriangleExclamation className="mt-0.5 size-5 shrink-0 text-amber-400" />
+                <div>
+                  <p className="font-semibold text-amber-300">Company Verification Pending</p>
+                  <p className="text-neutral-300 text-xs mt-0.5 leading-relaxed">
+                    <strong>{company.name}</strong> is currently awaiting administrator review. Job posting is locked until an administrator approves your company registration.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* ------------------------------ Job Info ----------------------------- */}
             <Fieldset>
@@ -555,12 +570,20 @@ export default function NewJobPage() {
                 Cancel
               </Button>
               <Button
-                className="bg-white font-semibold text-black hover:bg-white/90"
+                className="bg-white font-semibold text-black hover:bg-white/90 disabled:opacity-50"
                 isDisabled={!canPost}
                 isPending={isSubmitting}
                 type="submit"
               >
-                {isSubmitting ? "PostingÃ¢â‚¬Â¦" : "Post Job"}
+                {isSubmitting
+                  ? "Posting…"
+                  : !company
+                  ? "No Company"
+                  : company.status === "pending"
+                  ? "Locked (Pending Admin Approval)"
+                  : company.status === "rejected"
+                  ? "Company Rejected"
+                  : "Post Job"}
               </Button>
             </div>
           </div>

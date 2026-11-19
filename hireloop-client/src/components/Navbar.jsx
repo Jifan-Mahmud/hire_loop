@@ -24,6 +24,12 @@ export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { data: session, isLoading } = useSession();
   const user = session?.user;
+  const dashboardHref =
+    user?.role === "admin"
+      ? "/deshboard/admin"
+      : user?.role === "recruiter"
+      ? "/deshboard/recruiter"
+      : "/deshboard/seekers";
   const handleSignOut = async () => {
     try {
       await authClient.signOut({
@@ -69,7 +75,7 @@ export default function Navbar() {
             <>
               <div className="flex items-center gap-3">
                 <Link
-                  href={user?.role === "recruiter" ? "/deshboard/recruiter" : "/deshboard/seekers"}
+                  href={dashboardHref}
                   className="text-sm font-medium text-neutral-300 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition"
                 >
                   Dashboard
@@ -77,7 +83,7 @@ export default function Navbar() {
 
                 {/* User Profile */}
                 <Link
-                  href={user?.role === "recruiter" ? "/deshboard/recruiter" : "/deshboard/seekers/settings"}
+                  href={dashboardHref}
                   className="group flex items-center gap-2.5 rounded-full px-2 py-1.5 transition hover:bg-white/5"
                 >
                   {/* Avatar */}
@@ -185,7 +191,7 @@ export default function Navbar() {
             {user ? (
               <>
                 <Link
-                  href={user?.role === "recruiter" ? "/deshboard/recruiter" : "/deshboard/seekers"}
+                  href={dashboardHref}
                   onClick={() => setIsMenuOpen(false)}
                   className="border-b border-white/10 py-4 text-purple-400 font-medium"
                 >

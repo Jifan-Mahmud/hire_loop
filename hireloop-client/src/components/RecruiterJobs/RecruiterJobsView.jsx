@@ -148,14 +148,42 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
           </p>
         </div>
 
-        <Link
-          href="/deshboard/recruiter/jobs/new"
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium shadow-lg shadow-purple-500/20 transition-all hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto text-sm"
-        >
-          <Plus width={18} height={18} />
-          <span>Post New Job</span>
-        </Link>
+        {company?.status === "approved" ? (
+          <Link
+            href="/deshboard/recruiter/jobs/new"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium shadow-lg shadow-purple-500/20 transition-all hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto text-sm"
+          >
+            <Plus width={18} height={18} />
+            <span>Post New Job</span>
+          </Link>
+        ) : (
+          <span
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-neutral-400 font-medium cursor-not-allowed opacity-60 w-full sm:w-auto text-sm"
+            title="Company must be approved by an administrator before posting jobs."
+          >
+            <Plus width={18} height={18} />
+            <span>Post New Job (Pending Approval)</span>
+          </span>
+        )}
       </div>
+
+      {/* If recruiter has company registered but pending review */}
+      {company && company.status === "pending" && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <p className="font-semibold text-amber-300">Company Verification Pending</p>
+            <p className="text-xs text-amber-200/80 mt-0.5">
+              Your company profile <strong>{company.name}</strong> is currently pending administrator review. Job posting is locked until an administrator approves your company.
+            </p>
+          </div>
+          <Link
+            href="/deshboard/recruiter/company"
+            className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 font-semibold text-xs shrink-0 transition-colors"
+          >
+            View Company Status
+          </Link>
+        </div>
+      )}
 
       {/* If recruiter has no company registered */}
       {!company && (

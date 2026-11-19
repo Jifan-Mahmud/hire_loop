@@ -82,11 +82,15 @@ function SignupContent() {
     try {
       setLoading(true);
 
-      const targetPlanId = formData.role === "recruiter" ? "recruiter-free" : "seeker-free";
+      const targetRole = formData.role;
+      const targetPlanId =
+        targetRole === "recruiter"
+          ? "recruiter-free"
+          : "seeker-free";
 
       const { data, error } = await authClient.signUp.email({
         name: formData.name.trim(),
-        role: formData.role,
+        role: targetRole,
         plan: "free",
         planId: targetPlanId,
         email: formData.email.trim(),
@@ -114,7 +118,9 @@ function SignupContent() {
           return;
         }
 
-        if (formData.role === "recruiter") {
+        if (targetRole === "admin") {
+          window.location.href = "/deshboard/admin";
+        } else if (formData.role === "recruiter") {
           window.location.href = "/deshboard/recruiter";
         } else {
           window.location.href = "/deshboard/seekers";

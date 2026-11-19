@@ -49,13 +49,16 @@ function SignInContent() {
     setError("");
     setSuccess("");
 
+    const normalizedEmail = formData.email.trim().toLowerCase();
+    const cleanPassword = formData.password.trim();
+
     // Validation
-    if (!formData.email.trim()) {
+    if (!normalizedEmail) {
       setError("Please enter your email.");
       return;
     }
 
-    if (!formData.password) {
+    if (!cleanPassword) {
       setError("Please enter your password.");
       return;
     }
@@ -63,10 +66,12 @@ function SignInContent() {
     try {
       setLoading(true);
 
+      const targetDestination = redirectUrl || "/deshboard";
+
       const { data, error } = await authClient.signIn.email({
-        email: formData.email.trim(),
-        password: formData.password,
-        callbackURL: "/",
+        email: normalizedEmail,
+        password: cleanPassword,
+        callbackURL: targetDestination,
       });
 
       if (error) {
@@ -83,7 +88,9 @@ function SignInContent() {
       }
 
       // Default role-based redirection
-      if (data?.user?.role === "recruiter") {
+      if (data?.user?.role === "admin") {
+        window.location.href = "/deshboard/admin";
+      } else if (data?.user?.role === "recruiter") {
         window.location.href = "/deshboard/recruiter";
       } else {
         window.location.href = "/deshboard/seekers";

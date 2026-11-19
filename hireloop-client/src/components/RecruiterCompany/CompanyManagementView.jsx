@@ -255,13 +255,23 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
               <Pencil width={16} height={16} />
               <span>Edit Company</span>
             </button>
-            <Link
-              href="/deshboard/recruiter/jobs/new"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium text-sm transition-all shadow-lg shadow-purple-500/20"
-            >
-              <Plus width={16} height={16} />
-              <span>Post Job</span>
-            </Link>
+            {activeCompany.status === "approved" ? (
+              <Link
+                href="/deshboard/recruiter/jobs/new"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium text-sm transition-all shadow-lg shadow-purple-500/20"
+              >
+                <Plus width={16} height={16} />
+                <span>Post Job</span>
+              </Link>
+            ) : (
+              <span
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-neutral-400 font-medium text-sm cursor-not-allowed opacity-60"
+                title="Your company must be approved by an administrator before posting jobs."
+              >
+                <Plus width={16} height={16} />
+                <span>Post Job (Pending Approval)</span>
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -307,9 +317,7 @@ export default function CompanyManagementView({ initialCompany = null, user = nu
                   Company Under Review (Pending Admin Approval)
                 </p>
                 <p className="text-amber-200/80 mt-0.5">
-                  Your company registration has been submitted and is currently awaiting
-                  review. Once an administrator approves your account, your company
-                  will be publicly visible and your job postings will be marked verified.
+                  Your company registration has been submitted and is currently awaiting administrator review. <strong>Job posting is locked until an administrator reviews and approves your organization.</strong> Once approved, you can freely create job listings.
                 </p>
               </div>
             </div>

@@ -16,7 +16,9 @@ export default function DashboardIndexPage() {
       return;
     }
 
-    if (session.user.role === "recruiter") {
+    if (session.user.role === "admin") {
+      router.replace("/deshboard/admin");
+    } else if (session.user.role === "recruiter") {
       router.replace("/deshboard/recruiter");
     } else {
       router.replace("/deshboard/seekers");
