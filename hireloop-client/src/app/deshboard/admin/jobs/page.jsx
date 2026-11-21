@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   Eye,
   TrashBin,
@@ -15,6 +16,7 @@ import AdminTopBar from "@/components/Admin/AdminTopBar";
 import { getAdminJobs, updateJobStatus, deleteJob } from "@/lib/api/admin";
 import Pagination from "@/components/Common/Pagination";
 import StatusBadge from "@/components/Common/StatusBadge";
+import ShareButton from "@/components/Common/ShareButton";
 import { formatDate, formatSalary } from "@/lib/utils/formatters";
 
 // Default showcase jobs matching Image 3
@@ -87,21 +89,67 @@ const defaultJobs = [
 ];
 
 export default function AdminJobsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  const urlQ = searchParams.get("q") || "";
+  const statusFilter = searchParams.get("status") || "all";
+  const categoryFilter = searchParams.get("category") || "all";
+  const activeTab = searchParams.get("tab") || "all";
+  const rawPage = parseInt(searchParams.get("page") || "1", 10);
+  const page = isNaN(rawPage) || rawPage < 1 ? 1 : rawPage;
+
   const [jobs, setJobs] = useState(defaultJobs);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [activeTab, setActiveTab] = useState("all"); // 'all' | 'active' | 'closed'
+  const [searchInput, setSearchInput] = useState(urlQ);
   const [previewJob, setPreviewJob] = useState(null);
-  const [page, setPage] = useState(1);
   const pageSize = 8;
+
+  // Helper using URLSearchParams
+  const updateParams = useCallback(
+    (updates) => {
+      const params = new URLSearchParams(searchParams.toString());
+      Object.entries(updates).forEach(([key, val]) => {
+        if (
+          val !== undefined &&
+          val !== null &&
+          val !== "" &&
+          val !== "all" &&
+          !(key === "page" && Number(val) === 1) &&
+          !(key === "tab" && val === "all")
+        ) {
+          params.set(key, String(val));
+        } else {
+          params.delete(key);
+        }
+      });
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  const [prevUrlQ, setPrevUrlQ] = useState(urlQ);
+  if (urlQ !== prevUrlQ) {
+    setPrevUrlQ(urlQ);
+    setSearchInput(urlQ);
+  }
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== urlQ) {
+        updateParams({ q: searchInput, page: 1 });
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput, urlQ, updateParams]);
 
   useEffect(() => {
     let ignore = false;
     async function fetchJobs() {
       try {
-        const data = await getAdminJobs({ search });
+        const data = await getAdminJobs({ search: searchInput });
         if (!ignore && Array.isArray(data) && data.length > 0) {
           const mapped = data.map((j) => ({
             id: j._id || j.id,
@@ -132,7 +180,7 @@ export default function AdminJobsPage() {
     return () => {
       ignore = true;
     };
-  }, [search]);
+  }, [searchInput]);
 
   // Toggle job status
   const handleToggleStatus = async (job) => {
@@ -160,9 +208,10 @@ export default function AdminJobsPage() {
 
   const filteredJobs = jobs.filter((j) => {
     const matchesSearch =
-      j.title.toLowerCase().includes(search.toLowerCase()) ||
-      j.company.toLowerCase().includes(search.toLowerCase()) ||
-      j.category.toLowerCase().includes(search.toLowerCase());
+      !searchInput.trim() ||
+      j.title.toLowerCase().includes(searchInput.toLowerCase()) ||
+      j.company.toLowerCase().includes(searchInput.toLowerCase()) ||
+      j.category.toLowerCase().includes(searchInput.toLowerCase());
     const matchesStatus =
       activeTab === "all"
         ? statusFilter === "all"
@@ -184,12 +233,9 @@ export default function AdminJobsPage() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
       {/* Top Bar */}
       <AdminTopBar
-        placeholder="Search transactions, users, or IDs..."
-        searchValue={search}
-        onSearchChange={(val) => {
-          setSearch(val);
-          setPage(1);
-        }}
+        placeholder="Search jobs, companies, or categories..."
+        searchValue={searchInput}
+        onSearchChange={(val) => setSearchInput(val)}
         manageRoleText="Admin View"
       />
 
@@ -219,10 +265,7 @@ export default function AdminJobsPage() {
           {/* Status Dropdown */}
           <select
             value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => updateParams({ status: e.target.value, page: 1 })}
             className="h-9 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-xs text-neutral-300 focus:outline-none focus:border-purple-500"
           >
             <option value="all" className="bg-[#14141c]">All Statuses</option>
@@ -233,10 +276,7 @@ export default function AdminJobsPage() {
           {/* Category Dropdown */}
           <select
             value={categoryFilter}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => updateParams({ category: e.target.value, page: 1 })}
             className="h-9 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-xs text-neutral-300 focus:outline-none focus:border-purple-500"
           >
             <option value="all" className="bg-[#14141c]">All Categories</option>
@@ -250,7 +290,7 @@ export default function AdminJobsPage() {
         {/* Toggle Pills matching Image 3 */}
         <div className="flex items-center gap-2 text-xs">
           <button
-            onClick={() => setActiveTab(activeTab === "active" ? "all" : "active")}
+            onClick={() => updateParams({ tab: activeTab === "active" ? "all" : "active", page: 1 })}
             className={`px-3 py-1.5 rounded-xl border transition ${
               activeTab === "active"
                 ? "bg-white/15 border-white/20 text-white font-semibold"
@@ -260,7 +300,7 @@ export default function AdminJobsPage() {
             Active (128)
           </button>
           <button
-            onClick={() => setActiveTab(activeTab === "closed" ? "all" : "closed")}
+            onClick={() => updateParams({ tab: activeTab === "closed" ? "all" : "closed", page: 1 })}
             className={`px-3 py-1.5 rounded-xl border transition ${
               activeTab === "closed"
                 ? "bg-white/15 border-white/20 text-white font-semibold"
@@ -328,9 +368,15 @@ export default function AdminJobsPage() {
                     <StatusBadge status={job.status} />
                   </td>
 
-                  {/* Actions (Eye, Trash) */}
+                  {/* Actions (Share, Eye, Trash) */}
                   <td className="py-3.5 px-6 text-right">
-                    <div className="flex items-center justify-end gap-3 text-neutral-400">
+                    <div className="flex items-center justify-end gap-2 text-neutral-400">
+                      <ShareButton
+                        variant="icon"
+                        url={`/jobs/${job.id}`}
+                        title={job.title}
+                        text={`Check out this opening for ${job.title} at ${job.company}!`}
+                      />
                       <button
                         onClick={() => setPreviewJob(job)}
                         className="hover:text-white transition cursor-pointer p-1"
@@ -360,7 +406,7 @@ export default function AdminJobsPage() {
             totalPages={totalPages}
             totalItems={filteredJobs.length}
             pageSize={pageSize}
-            onPageChange={setPage}
+            onPageChange={(p) => updateParams({ page: p })}
             itemName="jobs"
           />
         </div>
@@ -439,7 +485,13 @@ export default function AdminJobsPage() {
                 <span className="font-semibold text-emerald-400 uppercase">{previewJob.status}</span>
               </div>
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/10">
+              <ShareButton
+                variant="compact"
+                url={`/jobs/${previewJob.id}`}
+                title={previewJob.title}
+                text={`Check out this opening for ${previewJob.title} at ${previewJob.company}!`}
+              />
               <button
                 onClick={() => handleToggleStatus(previewJob)}
                 className="px-4 py-2 rounded-xl bg-purple-600 text-white text-xs font-semibold hover:bg-purple-500"

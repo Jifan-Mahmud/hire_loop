@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   FileText,
   Calendar,
@@ -17,13 +18,32 @@ import EmptyState from "@/components/Common/EmptyState";
 import { formatDate } from "@/lib/utils/formatters";
 
 export default function SeekerApplicationsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { data: session } = useSession();
   const user = session?.user;
 
+  const rawPage = parseInt(searchParams.get("page") || "1", 10);
+  const page = isNaN(rawPage) || rawPage < 1 ? 1 : rawPage;
+
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
   const pageSize = 5;
+
+  const updatePage = useCallback(
+    (newPage) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (newPage > 1) {
+        params.set("page", String(newPage));
+      } else {
+        params.delete("page");
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
 
   const totalPages = Math.ceil(applications.length / pageSize) || 1;
   const safePage = Math.min(Math.max(1, page), totalPages);
@@ -136,7 +156,7 @@ export default function SeekerApplicationsPage() {
               totalPages={totalPages}
               totalItems={applications.length}
               pageSize={pageSize}
-              onPageChange={setPage}
+              onPageChange={updatePage}
               itemName="applications"
             />
           </>

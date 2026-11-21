@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   Person,
   ChevronDown,
@@ -23,6 +24,16 @@ import StatusBadge from "@/components/Common/StatusBadge";
 import { formatDate, getInitials } from "@/lib/utils/formatters";
 
 export default function AdminUsersPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  const urlQ = searchParams.get("q") || "";
+  const roleFilter = searchParams.get("role") || "all";
+  const statusFilter = searchParams.get("status") || "all";
+  const rawPage = parseInt(searchParams.get("page") || "1", 10);
+  const page = isNaN(rawPage) || rawPage < 1 ? 1 : rawPage;
+
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -33,16 +44,51 @@ export default function AdminUsersPage() {
   });
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchInput, setSearchInput] = useState(urlQ);
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [feedback, setFeedback] = useState(null);
+
+  // Helper using URLSearchParams to sync state with URL
+  const updateParams = useCallback(
+    (updates) => {
+      const params = new URLSearchParams(searchParams.toString());
+      Object.entries(updates).forEach(([key, val]) => {
+        if (
+          val !== undefined &&
+          val !== null &&
+          val !== "" &&
+          val !== "all" &&
+          !(key === "page" && Number(val) === 1)
+        ) {
+          params.set(key, String(val));
+        } else {
+          params.delete(key);
+        }
+      });
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  const [prevUrlQ, setPrevUrlQ] = useState(urlQ);
+  if (urlQ !== prevUrlQ) {
+    setPrevUrlQ(urlQ);
+    setSearchInput(urlQ);
+  }
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== urlQ) {
+        updateParams({ q: searchInput, page: 1 });
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput, urlQ, updateParams]);
 
   const showFeedback = (message, type = "success") => {
     setFeedback({ message, type });
@@ -60,7 +106,7 @@ export default function AdminUsersPage() {
 
       try {
         const data = await getAdminUsers({
-          search,
+          search: searchInput,
           role: roleFilter,
           status: statusFilter,
           page,
@@ -99,7 +145,7 @@ export default function AdminUsersPage() {
         setIsRefreshing(false);
       }
     },
-    [search, roleFilter, statusFilter, page]
+    [searchInput, roleFilter, statusFilter, page]
   );
 
   // Initial mount & filter/page changes
@@ -331,11 +377,8 @@ export default function AdminUsersPage() {
       {/* Top Bar */}
       <AdminTopBar
         placeholder="Search users by name or email..."
-        searchValue={search}
-        onSearchChange={(val) => {
-          setSearch(val);
-          setPage(1);
-        }}
+        searchValue={searchInput}
+        onSearchChange={(val) => setSearchInput(val)}
         manageRoleText="Manage Platform Users"
       />
 
@@ -418,9 +461,8 @@ export default function AdminUsersPage() {
                   <button
                     key={item.key}
                     onClick={() => {
-                      setRoleFilter(item.key);
+                      updateParams({ role: item.key, page: 1 });
                       setShowRoleDropdown(false);
-                      setPage(1);
                     }}
                     className={`w-full text-left px-3 py-2 rounded-lg transition cursor-pointer ${
                       roleFilter === item.key
@@ -464,9 +506,8 @@ export default function AdminUsersPage() {
                   <button
                     key={item.key}
                     onClick={() => {
-                      setStatusFilter(item.key);
+                      updateParams({ status: item.key, page: 1 });
                       setShowStatusDropdown(false);
-                      setPage(1);
                     }}
                     className={`w-full text-left px-3 py-2 rounded-lg transition cursor-pointer ${
                       statusFilter === item.key
@@ -701,7 +742,7 @@ export default function AdminUsersPage() {
             totalPages={totalPages}
             totalItems={total}
             pageSize={10}
-            onPageChange={setPage}
+            onPageChange={(p) => updateParams({ page: p })}
             itemName="users"
           />
         </div>

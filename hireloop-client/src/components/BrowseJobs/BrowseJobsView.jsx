@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   ArrowRight,
   Briefcase,
@@ -20,8 +20,10 @@ import {
 } from "@gravity-ui/icons";
 import { useSession, authClient } from "@/lib/auth-client";
 import { getCandidateApplications } from "@/lib/api/applications";
+import { getAllJobs } from "@/lib/api/jobs";
 import Pagination from "@/components/Common/Pagination";
 import EmptyState from "@/components/Common/EmptyState";
+import LoadingSpinner from "@/components/Common/LoadingSpinner";
 import ShareButton from "@/components/Common/ShareButton";
 import { formatSalary } from "@/lib/utils/formatters";
 
@@ -43,22 +45,119 @@ const JOB_TYPES = [
   { id: "internship", label: "Internship" },
 ];
 
-export default function BrowseJobsView({ initialJobs = [] }) {
+export default function BrowseJobsView({
+  initialJobs = [],
+  initialTotal = 0,
+  initialTotalPages = 1,
+}) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { data: session } = useSession();
   const user = session?.user;
 
-  const [jobs] = useState(initialJobs);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedType, setSelectedType] = useState("all");
-  const [remoteFilter, setRemoteFilter] = useState("all"); // 'all' | 'remote' | 'onsite'
-  const [sortBy, setSortBy] = useState("newest"); // 'newest' | 'salary-high'
+  // Active filters derived directly from URL Search Params
+  const urlQ = searchParams.get("q") || "";
+  const selectedCategory = searchParams.get("category") || "all";
+  const selectedType = searchParams.get("type") || "all";
+  const remoteFilter = searchParams.get("remote") || "all"; // 'all' | 'remote' | 'onsite'
+  const sortBy = searchParams.get("sort") || "newest"; // 'newest' | 'salary-high'
+  const rawPage = parseInt(searchParams.get("page") || "1", 10);
+  const page = isNaN(rawPage) || rawPage < 1 ? 1 : rawPage;
+
+  // Server-side paginated state (only holds the 9 jobs for the current page)
+  const [jobs, setJobs] = useState(initialJobs);
+  const [total, setTotal] = useState(initialTotal || initialJobs.length);
+  const [totalPages, setTotalPages] = useState(initialTotalPages || 1);
+  const [loading, setLoading] = useState(false);
+
+  const [searchInput, setSearchInput] = useState(urlQ);
   const [selectedJob, setSelectedJob] = useState(null);
   const [recruiterWarning, setRecruiterWarning] = useState(false);
   const [appliedJobs, setAppliedJobs] = useState({});
-  const [page, setPage] = useState(1);
   const pageSize = 9;
+
+  // Helper using URLSearchParams to update URL cleanly
+  const updateParams = useCallback(
+    (updates) => {
+      const params = new URLSearchParams(searchParams.toString());
+      Object.entries(updates).forEach(([key, val]) => {
+        if (
+          val !== undefined &&
+          val !== null &&
+          val !== "" &&
+          val !== "all" &&
+          !(key === "page" && Number(val) === 1) &&
+          !(key === "sort" && val === "newest")
+        ) {
+          params.set(key, String(val));
+        } else {
+          params.delete(key);
+        }
+      });
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  // Sync search input if URL changes externally (e.g. Back/Forward button)
+  const [prevUrlQ, setPrevUrlQ] = useState(urlQ);
+  if (urlQ !== prevUrlQ) {
+    setPrevUrlQ(urlQ);
+    setSearchInput(urlQ);
+  }
+
+  // Debounce search typing into URL search params
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== urlQ) {
+        updateParams({ q: searchInput, page: 1 });
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput, urlQ, updateParams]);
+
+  // Server-side on-demand fetch whenever page or filters change
+  const loadPageJobs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getAllJobs({
+        status: "active",
+        page,
+        limit: pageSize,
+        category: selectedCategory,
+        type: selectedType,
+        isRemote: remoteFilter === "remote" ? true : remoteFilter === "onsite" ? false : "all",
+        search: urlQ,
+        sort: sortBy,
+      });
+
+      if (data && typeof data === "object" && Array.isArray(data.jobs)) {
+        setJobs(data.jobs);
+        setTotal(data.total);
+        setTotalPages(data.totalPages || 1);
+      } else if (Array.isArray(data)) {
+        setJobs(data);
+        setTotal(data.length);
+        setTotalPages(Math.ceil(data.length / pageSize) || 1);
+      }
+    } catch (err) {
+      console.error("Error fetching jobs for page:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, selectedCategory, selectedType, remoteFilter, urlQ, sortBy]);
+
+  // Skip duplicate fetch on initial SSR mount, then trigger on any param change
+  const isFirstMount = useRef(true);
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    loadPageJobs();
+  }, [loadPageJobs]);
 
   // Sync candidate's already submitted applications
   useEffect(() => {
@@ -87,63 +186,6 @@ export default function BrowseJobsView({ initialJobs = [] }) {
     };
   }, [user?.email, user?.role]);
 
-  // Filter & Sort Logic
-  const filteredJobs = useMemo(() => {
-    let result = [...jobs];
-
-    // 1. Text Search (title, companyName, location, category)
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(
-        (j) =>
-          (j.title && j.title.toLowerCase().includes(q)) ||
-          (j.companyName && j.companyName.toLowerCase().includes(q)) ||
-          (j.location && j.location.toLowerCase().includes(q)) ||
-          (j.category && j.category.toLowerCase().includes(q)) ||
-          (j.requirements && j.requirements.toLowerCase().includes(q))
-      );
-    }
-
-    // 2. Category Filter
-    if (selectedCategory !== "all") {
-      result = result.filter(
-        (j) => j.category && j.category.toLowerCase() === selectedCategory.toLowerCase()
-      );
-    }
-
-    // 3. Job Type Filter
-    if (selectedType !== "all") {
-      result = result.filter(
-        (j) => j.type && j.type.toLowerCase() === selectedType.toLowerCase()
-      );
-    }
-
-    // 4. Remote / Location Filter
-    if (remoteFilter === "remote") {
-      result = result.filter((j) => j.isRemote);
-    } else if (remoteFilter === "onsite") {
-      result = result.filter((j) => !j.isRemote);
-    }
-
-    // 5. Sorting
-    if (sortBy === "salary-high") {
-      result.sort((a, b) => (b.salaryMax || 0) - (a.salaryMax || 0));
-    } else {
-      // newest
-      result.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-    }
-
-    return result;
-  }, [jobs, searchQuery, selectedCategory, selectedType, remoteFilter, sortBy]);
-
-  // Pagination calculation
-  const totalPages = Math.ceil(filteredJobs.length / pageSize) || 1;
-  const safePage = Math.min(Math.max(1, page), totalPages);
-  const paginatedJobs = useMemo(() => {
-    const start = (safePage - 1) * pageSize;
-    return filteredJobs.slice(start, start + pageSize);
-  }, [filteredJobs, safePage, pageSize]);
-
   const handleApply = (job) => {
     if (!job) return;
     const jobId = job._id || job;
@@ -166,11 +208,8 @@ export default function BrowseJobsView({ initialJobs = [] }) {
   };
 
   const handleResetFilters = () => {
-    setSearchQuery("");
-    setSelectedCategory("all");
-    setSelectedType("all");
-    setRemoteFilter("all");
-    setSortBy("newest");
+    setSearchInput("");
+    router.replace(pathname, { scroll: false });
   };
 
   return (
@@ -208,14 +247,17 @@ export default function BrowseJobsView({ initialJobs = [] }) {
               </div>
               <input
                 type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search by job title, company (e.g. Google, Apple), skill, or location..."
                 className="w-full bg-transparent px-3.5 py-2.5 text-sm sm:text-base text-white placeholder-neutral-500 focus:outline-none"
               />
-              {searchQuery && (
+              {searchInput && (
                 <button
-                  onClick={() => setSearchQuery("")}
+                  onClick={() => {
+                    setSearchInput("");
+                    updateParams({ q: "", page: 1 });
+                  }}
                   className="p-1.5 text-neutral-400 hover:text-white rounded-lg transition-colors mr-1"
                 >
                   <Xmark width={16} height={16} />
@@ -237,7 +279,7 @@ export default function BrowseJobsView({ initialJobs = [] }) {
             return (
               <button
                 key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
+                onClick={() => updateParams({ category: cat.id, page: 1 })}
                 className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all ${
                   isActive
                     ? "bg-purple-600 text-white shadow-lg shadow-purple-600/30 scale-[1.02]"
@@ -256,7 +298,7 @@ export default function BrowseJobsView({ initialJobs = [] }) {
             {/* Work Mode Toggle */}
             <div className="inline-flex rounded-xl bg-neutral-900 border border-white/10 p-1 text-xs">
               <button
-                onClick={() => setRemoteFilter("all")}
+                onClick={() => updateParams({ remote: "all", page: 1 })}
                 className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
                   remoteFilter === "all" ? "bg-white/15 text-white shadow" : "text-neutral-400 hover:text-white"
                 }`}
@@ -264,7 +306,7 @@ export default function BrowseJobsView({ initialJobs = [] }) {
                 All Modes
               </button>
               <button
-                onClick={() => setRemoteFilter("remote")}
+                onClick={() => updateParams({ remote: "remote", page: 1 })}
                 className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
                   remoteFilter === "remote" ? "bg-blue-500/20 text-blue-300 border border-blue-500/30 shadow" : "text-neutral-400 hover:text-white"
                 }`}
@@ -272,7 +314,7 @@ export default function BrowseJobsView({ initialJobs = [] }) {
                 Remote Only
               </button>
               <button
-                onClick={() => setRemoteFilter("onsite")}
+                onClick={() => updateParams({ remote: "onsite", page: 1 })}
                 className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
                   remoteFilter === "onsite" ? "bg-purple-500/20 text-purple-300 border border-purple-500/30 shadow" : "text-neutral-400 hover:text-white"
                 }`}
@@ -284,7 +326,7 @@ export default function BrowseJobsView({ initialJobs = [] }) {
             {/* Job Type Dropdown */}
             <select
               value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
+              onChange={(e) => updateParams({ type: e.target.value, page: 1 })}
               className="px-3 py-2 rounded-xl bg-neutral-900 border border-white/10 text-xs text-neutral-300 focus:outline-none focus:border-purple-500/50"
             >
               {JOB_TYPES.map((t) => (
@@ -298,14 +340,20 @@ export default function BrowseJobsView({ initialJobs = [] }) {
           {/* Results Count & Sort */}
           <div className="flex items-center gap-3 text-xs text-neutral-400">
             <span>
-              Showing <strong className="text-white font-semibold">{filteredJobs.length}</strong> opportunities
+              Showing <strong className="text-white font-semibold">{jobs.length}</strong> of{" "}
+              <strong className="text-white font-semibold">{total}</strong> jobs
+              {totalPages > 1 && (
+                <span className="text-neutral-500 ml-1">
+                  (Page {page} of {totalPages})
+                </span>
+              )}
             </span>
             <span className="text-white/20">|</span>
             <div className="flex items-center gap-1.5">
               <span>Sort:</span>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => updateParams({ sort: e.target.value, page: 1 })}
                 className="bg-transparent text-purple-300 font-medium focus:outline-none cursor-pointer"
               >
                 <option value="newest" className="bg-neutral-900 text-white">
@@ -320,9 +368,13 @@ export default function BrowseJobsView({ initialJobs = [] }) {
         </div>
 
         {/* =========================================================
-            JOBS CARD GRID (কার্ড আকারে প্রদর্শন)
+            JOBS CARD GRID (অন-ডিমান্ড পেজিনেশন ও লোডিং স্টেট)
            ========================================================= */}
-        {filteredJobs.length === 0 ? (
+        {loading ? (
+          <div className="py-24 flex flex-col items-center justify-center">
+            <LoadingSpinner text={`Fetching page ${page} jobs from server...`} />
+          </div>
+        ) : jobs.length === 0 ? (
           <EmptyState
             icon={Briefcase}
             title="No jobs match your search"
@@ -333,7 +385,7 @@ export default function BrowseJobsView({ initialJobs = [] }) {
         ) : (
           <>
             <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {paginatedJobs.map((job) => {
+              {jobs.map((job) => {
                 const isApplied = !!appliedJobs[job._id];
 
               return (
@@ -417,7 +469,13 @@ export default function BrowseJobsView({ initialJobs = [] }) {
                       <span className="truncate">{job.deadline ? `Due: ${job.deadline}` : "Actively Hiring"}</span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <ShareButton
+                        url={`/jobs/${job._id}`}
+                        title={job.title}
+                        text={`Check out this opening for ${job.title} at ${job.companyName || "HireLoop"}!`}
+                        variant="icon"
+                      />
                       <button
                         onClick={() => setSelectedJob(job)}
                         className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 font-medium text-xs transition-colors"
@@ -446,12 +504,12 @@ export default function BrowseJobsView({ initialJobs = [] }) {
 
             {/* Pagination Controls */}
             <Pagination
-              currentPage={safePage}
+              currentPage={page}
               totalPages={totalPages}
-              totalItems={filteredJobs.length}
+              totalItems={total}
               pageSize={pageSize}
               onPageChange={(newPage) => {
-                setPage(newPage);
+                updateParams({ page: newPage });
                 window.scrollTo({ top: 350, behavior: "smooth" });
               }}
               itemName="jobs"
@@ -567,13 +625,21 @@ export default function BrowseJobsView({ initialJobs = [] }) {
             </div>
 
             {/* Modal Footer / Action Button */}
-            <div className="mt-8 pt-5 border-t border-white/10 flex items-center justify-between gap-4">
-              <button
-                onClick={() => setSelectedJob(null)}
-                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-sm font-medium transition-colors"
-              >
-                Close
-              </button>
+            <div className="mt-8 pt-5 border-t border-white/10 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedJob(null)}
+                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-sm font-medium transition-colors"
+                >
+                  Close
+                </button>
+                <ShareButton
+                  url={`/jobs/${selectedJob._id}`}
+                  title={selectedJob.title}
+                  text={`Check out this job opening for ${selectedJob.title} at ${selectedJob.companyName || "HireLoop"}!`}
+                  variant="compact"
+                />
+              </div>
 
               {appliedJobs[selectedJob._id] ? (
                 <div className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-sm font-semibold">

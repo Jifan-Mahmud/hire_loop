@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Link as LinkIcon, Copy, CopyCheck, LogoLinkedin } from "@gravity-ui/icons";
+import { Link as LinkIcon, Copy, CopyCheck } from "@gravity-ui/icons";
 
 export default function ShareButton({
   url = "",

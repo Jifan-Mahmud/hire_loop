@@ -10,21 +10,24 @@ export async function getAllJobs(filters = {}) {
     }
     if (filters.search) params.append("search", filters.search);
     if (filters.status) params.append("status", filters.status);
+    if (filters.page) params.append("page", filters.page);
+    if (filters.limit) params.append("limit", filters.limit);
+    if (filters.sort) params.append("sort", filters.sort);
 
     const queryString = params.toString() ? `?${params.toString()}` : "";
     const res = await fetch(`${baseUrl}/api/jobs${queryString}`, { cache: "no-store" });
     if (!res.ok) {
       console.error("Failed to fetch jobs:", res.status);
-      return [];
+      return filters.limit ? { jobs: [], total: 0, totalPages: 1, currentPage: 1 } : [];
     }
     const contentType = res.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
       return await res.json();
     }
-    return [];
+    return filters.limit ? { jobs: [], total: 0, totalPages: 1, currentPage: 1 } : [];
   } catch (error) {
     console.error("Error in getAllJobs:", error);
-    return [];
+    return filters.limit ? { jobs: [], total: 0, totalPages: 1, currentPage: 1 } : [];
   }
 }
 

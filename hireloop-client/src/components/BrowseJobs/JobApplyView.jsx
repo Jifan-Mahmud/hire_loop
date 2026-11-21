@@ -28,6 +28,7 @@ import {
   getMonthlyApplicationUsage,
 } from "@/lib/api/applications";
 import LoadingSpinner from "@/components/Common/LoadingSpinner";
+import ShareButton from "@/components/Common/ShareButton";
 import { formatSalary } from "@/lib/utils/formatters";
 
 export default function JobApplyView({
@@ -456,17 +457,26 @@ export default function JobApplyView({
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link
                 href="/jobs"
-                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-sm transition-all shadow-lg shadow-purple-600/30"
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-sm transition-all shadow-lg shadow-purple-600/30 text-center"
               >
                 Browse More Jobs
               </Link>
               {selectedJob?._id && (
-                <Link
-                  href={`/jobs/${selectedJob._id}`}
-                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-sm transition-colors"
-                >
-                  View Job Details
-                </Link>
+                <>
+                  <Link
+                    href={`/jobs/${selectedJob._id}`}
+                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-sm transition-colors text-center"
+                  >
+                    View Job Details
+                  </Link>
+                  <ShareButton
+                    url={`/jobs/${selectedJob._id}`}
+                    title={selectedJob.title}
+                    text={`Check out this opening for ${selectedJob.title} at ${selectedJob.companyName || "HireLoop"}!`}
+                    variant="button"
+                    label="Share Job"
+                  />
+                </>
               )}
             </div>
           </div>
@@ -642,6 +652,17 @@ export default function JobApplyView({
                       <span className="text-neutral-300">{selectedJob.deadline}</span>
                     </div>
                   )}
+                </div>
+
+                {/* Shareable Link Row */}
+                <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
+                  <span className="text-[11px] text-neutral-400">Share with friends:</span>
+                  <ShareButton
+                    url={`/jobs/${selectedJob._id}`}
+                    title={selectedJob.title}
+                    text={`Check out this open position for ${selectedJob.title} at ${selectedJob.companyName || "HireLoop"}!`}
+                    variant="compact"
+                  />
                 </div>
 
                 {/* Job Switcher if other jobs available */}

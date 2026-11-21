@@ -579,9 +579,37 @@ async function run() {
             { title: { $regex: s, $options: 'i' } },
             { companyName: { $regex: s, $options: 'i' } },
             { location: { $regex: s, $options: 'i' } },
+            { category: { $regex: s, $options: 'i' } },
+            { requirements: { $regex: s, $options: 'i' } },
           ];
         }
-        const cursor = jobCollection.find(query).sort({ createdAt: -1 });
+
+        // Sorting
+        let sortOption = { createdAt: -1 };
+        if (req.query.sort === 'salary-high') {
+          sortOption = { salaryMax: -1, createdAt: -1 };
+        } else if (req.query.sort === 'newest') {
+          sortOption = { createdAt: -1 };
+        }
+
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 0;
+
+        const totalItems = await jobCollection.countDocuments(query);
+
+        let cursor = jobCollection.find(query).sort(sortOption);
+
+        if (limit > 0) {
+          cursor = cursor.skip((page - 1) * limit).limit(limit);
+          const results = await cursor.toArray();
+          return res.send({
+            jobs: results,
+            total: totalItems,
+            totalPages: Math.ceil(totalItems / limit) || 1,
+            currentPage: page,
+          });
+        }
+
         const results = await cursor.toArray();
         res.send(results);
       } catch (error) {

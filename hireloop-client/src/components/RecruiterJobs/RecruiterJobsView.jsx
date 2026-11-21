@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   Briefcase,
   Calendar,
@@ -19,27 +20,78 @@ import {
 import { deleteJob, updateJobStatus } from "@/lib/api/jobs";
 import Pagination from "@/components/Common/Pagination";
 import EmptyState from "@/components/Common/EmptyState";
+import ShareButton from "@/components/Common/ShareButton";
 import { formatSalary, formatDate } from "@/lib/utils/formatters";
 
 export default function RecruiterJobsView({ initialJobs = [], companyId = null, company = null }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  // Search Params & URLSearchParams for state persistence & deep linking
+  const urlQ = searchParams.get("q") || "";
+  const viewMode = searchParams.get("view") || "table"; // 'table' | 'cards'
+  const statusFilter = searchParams.get("status") || "all";
+  const typeFilter = searchParams.get("type") || "all";
+  const rawPage = parseInt(searchParams.get("page") || "1", 10);
+  const page = isNaN(rawPage) || rawPage < 1 ? 1 : rawPage;
+
   const [jobs, setJobs] = useState(initialJobs);
-  const [viewMode, setViewMode] = useState("table"); // 'table' | 'cards'
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [searchInput, setSearchInput] = useState(urlQ);
   const [selectedJob, setSelectedJob] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
-  const [page, setPage] = useState(1);
   const pageSize = 8;
+
+  // Helper using URLSearchParams to update URL cleanly
+  const updateParams = useCallback(
+    (updates) => {
+      const params = new URLSearchParams(searchParams.toString());
+      Object.entries(updates).forEach(([key, val]) => {
+        if (
+          val !== undefined &&
+          val !== null &&
+          val !== "" &&
+          val !== "all" &&
+          !(key === "page" && Number(val) === 1) &&
+          !(key === "view" && val === "table")
+        ) {
+          params.set(key, String(val));
+        } else {
+          params.delete(key);
+        }
+      });
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  // Sync search input if URL changes externally
+  const [prevUrlQ, setPrevUrlQ] = useState(urlQ);
+  if (urlQ !== prevUrlQ) {
+    setPrevUrlQ(urlQ);
+    setSearchInput(urlQ);
+  }
+
+  // Debounced search sync to URLSearchParams
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== urlQ) {
+        updateParams({ q: searchInput, page: 1 });
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput, urlQ, updateParams]);
 
   // Filtered jobs based on search & filters
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
       const matchesSearch =
-        (job.title && job.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (job.category && job.category.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (job.location && job.location.toLowerCase().includes(searchQuery.toLowerCase()));
+        !searchInput.trim() ||
+        (job.title && job.title.toLowerCase().includes(searchInput.toLowerCase())) ||
+        (job.category && job.category.toLowerCase().includes(searchInput.toLowerCase())) ||
+        (job.location && job.location.toLowerCase().includes(searchInput.toLowerCase()));
 
       const matchesStatus =
         statusFilter === "all" ||
@@ -51,7 +103,7 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
 
       return matchesSearch && matchesStatus && matchesType;
     });
-  }, [jobs, searchQuery, statusFilter, typeFilter]);
+  }, [jobs, searchInput, statusFilter, typeFilter]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredJobs.length / pageSize) || 1;
@@ -245,11 +297,8 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
           </span>
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setPage(1);
-            }}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search by job title, category, or location..."
             className="w-full pl-10 pr-4 py-2 text-sm bg-neutral-950/80 border border-white/10 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:border-purple-500 transition-colors"
           />
@@ -260,10 +309,7 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
           {/* Status Filter */}
           <select
             value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => updateParams({ status: e.target.value, page: 1 })}
             className="px-3 py-2 text-sm bg-neutral-950/80 border border-white/10 rounded-xl text-neutral-200 focus:outline-none focus:border-purple-500 transition-colors"
           >
             <option value="all">All Status</option>
@@ -274,10 +320,7 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
           {/* Type Filter */}
           <select
             value={typeFilter}
-            onChange={(e) => {
-              setTypeFilter(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => updateParams({ type: e.target.value, page: 1 })}
             className="px-3 py-2 text-sm bg-neutral-950/80 border border-white/10 rounded-xl text-neutral-200 focus:outline-none focus:border-purple-500 transition-colors"
           >
             <option value="all">All Types</option>
@@ -290,7 +333,7 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
           {/* View Toggle Buttons */}
           <div className="flex items-center border border-white/10 rounded-xl bg-neutral-950/80 p-0.5">
             <button
-              onClick={() => setViewMode("table")}
+              onClick={() => updateParams({ view: "table" })}
               title="Table View"
               className={`p-1.5 rounded-lg text-sm transition-all ${
                 viewMode === "table"
@@ -301,7 +344,7 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
               <LayoutList width={18} height={18} />
             </button>
             <button
-              onClick={() => setViewMode("cards")}
+              onClick={() => updateParams({ view: "cards" })}
               title="Cards Grid View"
               className={`p-1.5 rounded-lg text-sm transition-all ${
                 viewMode === "cards"
@@ -331,9 +374,8 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
             jobs.length === 0
               ? null
               : () => {
-                  setSearchQuery("");
-                  setStatusFilter("all");
-                  setTypeFilter("all");
+                  setSearchInput("");
+                  router.replace(pathname, { scroll: false });
                 }
           }
         />
@@ -426,6 +468,14 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
                     {/* Actions */}
                     <td className="py-4 px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1.5">
+                        {/* Share Link */}
+                        <ShareButton
+                          url={`/jobs/${job._id}`}
+                          title={job.title}
+                          text={`We're hiring for a ${job.title} role at ${job.companyName || company?.name || "HireLoop"}! Apply now:`}
+                          variant="icon"
+                        />
+
                         {/* View Details */}
                         <button
                           onClick={() => setSelectedJob(job)}
@@ -525,6 +575,12 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
                   </div>
 
                   <div className="flex items-center gap-1.5">
+                    <ShareButton
+                      url={`/jobs/${job._id}`}
+                      title={job.title}
+                      text={`We're hiring for a ${job.title} role at ${job.companyName || company?.name || "HireLoop"}! Apply now:`}
+                      variant="icon"
+                    />
                     <button
                       onClick={() => setSelectedJob(job)}
                       className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-medium text-white transition-colors"
@@ -553,7 +609,7 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
           totalPages={totalPages}
           totalItems={filteredJobs.length}
           pageSize={pageSize}
-          onPageChange={setPage}
+          onPageChange={(p) => updateParams({ page: p })}
           itemName="jobs"
         />
       )}
@@ -646,16 +702,25 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
             </div>
 
             {/* Modal Footer */}
-            <div className="pt-4 border-t border-white/10 flex items-center justify-between">
+            <div className="pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
               <span className="text-xs text-neutral-500">
                 Posted on {formatDate(selectedJob.createdAt)}
               </span>
-              <button
-                onClick={() => setSelectedJob(null)}
-                className="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-sm transition-colors"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                <ShareButton
+                  url={`/jobs/${selectedJob._id}`}
+                  title={selectedJob.title}
+                  text={`We're hiring for a ${selectedJob.title} role at ${selectedJob.companyName || company?.name || "HireLoop"}! Apply now:`}
+                  variant="compact"
+                  label="Share Posting"
+                />
+                <button
+                  onClick={() => setSelectedJob(null)}
+                  className="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-sm transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
