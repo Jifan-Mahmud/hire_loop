@@ -2,28 +2,30 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "@/lib/auth-client";
+import { useLiveUser } from "@/context/LiveUserContext";
 
 export default function DashboardIndexPage() {
   const router = useRouter();
-  const { data: session, isPending } = useSession();
+  const { user, role, isPending, isBanned } = useLiveUser();
 
   useEffect(() => {
     if (isPending) return;
 
-    if (!session?.user) {
+    if (!user) {
       router.replace("/signin?redirect=/deshboard");
       return;
     }
 
-    if (session.user.role === "admin") {
+    if (isBanned) return;
+
+    if (role === "admin") {
       router.replace("/deshboard/admin");
-    } else if (session.user.role === "recruiter") {
+    } else if (role === "recruiter") {
       router.replace("/deshboard/recruiter");
     } else {
       router.replace("/deshboard/seekers");
     }
-  }, [session, isPending, router]);
+  }, [user, role, isPending, isBanned, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0d0d11] text-white">

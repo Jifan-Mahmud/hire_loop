@@ -14,12 +14,11 @@ import {
   Medal,
   PaperPlane,
 } from "@gravity-ui/icons";
-import { useSession } from "@/lib/auth-client";
+import { useLiveUser } from "@/context/LiveUserContext";
 import { getCandidateApplications } from "@/lib/api/applications";
 
 export default function SeekerDashboardPage() {
-  const { data: session, isPending } = useSession();
-  const user = session?.user;
+  const { user, role, isPending } = useLiveUser();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [applications, setApplications] = useState([]);
@@ -44,7 +43,7 @@ export default function SeekerDashboardPage() {
     loadData();
   }, [user?.email]);
 
-  if (isPending || !user || user.role !== "seeker") {
+  if (isPending || !user || role !== "seeker") {
     return (
       <div className="p-8 text-neutral-400 flex items-center gap-2">
         <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />

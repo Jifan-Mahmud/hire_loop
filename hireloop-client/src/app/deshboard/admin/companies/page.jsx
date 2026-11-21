@@ -11,6 +11,7 @@ import {
 } from "@gravity-ui/icons";
 import AdminTopBar from "@/components/Admin/AdminTopBar";
 import { getAdminCompanies, updateCompanyStatus } from "@/lib/api/admin";
+import Pagination from "@/components/Common/Pagination";
 
 // Showcase companies matching Image 4
 const defaultCompanies = [
@@ -68,6 +69,7 @@ export default function AdminCompaniesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   // New company form state
   const [newCompany, setNewCompany] = useState({
@@ -157,13 +159,20 @@ export default function AdminCompaniesPage() {
     return matchesSearch && matchesStatus;
   });
 
+  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const paginatedCompanies = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
       {/* Top Bar */}
       <AdminTopBar
         placeholder="Search companies, recruiters, or industries..."
         searchValue={search}
-        onSearchChange={setSearch}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
         manageRoleText="Admin View"
       />
 
@@ -184,7 +193,10 @@ export default function AdminCompaniesPage() {
             {["all", "pending", "approved", "rejected"].map((st) => (
               <button
                 key={st}
-                onClick={() => setStatusFilter(st)}
+                onClick={() => {
+                  setStatusFilter(st);
+                  setPage(1);
+                }}
                 className={`px-3 py-1 rounded-lg capitalize font-medium transition ${
                   statusFilter === st
                     ? "bg-purple-600 text-white font-semibold"
@@ -222,7 +234,7 @@ export default function AdminCompaniesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.04]">
-              {filtered.map((comp) => (
+              {paginatedCompanies.map((comp) => (
                 <tr key={comp.id} className="hover:bg-white/[0.02] transition">
                   {/* Company Name */}
                   <td className="py-3.5 px-6">
@@ -304,35 +316,16 @@ export default function AdminCompaniesPage() {
           </table>
         </div>
 
-        {/* Pagination bar matching Image 4 */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-white/[0.08] text-xs text-neutral-400">
-          <span>
-            Showing 1-{filtered.length} of 124 companies
-          </span>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setPage(Math.max(1, page - 1))}
-              className="p-1 rounded-md text-neutral-400 hover:text-white"
-            >
-              &lt;
-            </button>
-            <button className="size-6 rounded bg-white text-black font-bold flex items-center justify-center text-xs">
-              1
-            </button>
-            <button className="size-6 rounded text-neutral-400 hover:text-white flex items-center justify-center text-xs">
-              2
-            </button>
-            <button className="size-6 rounded text-neutral-400 hover:text-white flex items-center justify-center text-xs">
-              3
-            </button>
-            <button
-              onClick={() => setPage(page + 1)}
-              className="p-1 rounded-md text-neutral-400 hover:text-white"
-            >
-              &gt;
-            </button>
-          </div>
+        {/* Pagination bar */}
+        <div className="px-4">
+          <Pagination
+            currentPage={safePage}
+            totalPages={totalPages}
+            totalItems={filtered.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            itemName="companies"
+          />
         </div>
       </div>
 

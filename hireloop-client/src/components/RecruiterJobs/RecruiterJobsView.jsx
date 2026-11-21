@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   Briefcase,
@@ -17,6 +17,7 @@ import {
   TrashBin,
 } from "@gravity-ui/icons";
 import { deleteJob, updateJobStatus } from "@/lib/api/jobs";
+import Pagination from "@/components/Common/Pagination";
 
 export default function RecruiterJobsView({ initialJobs = [], companyId = null, company = null }) {
   const [jobs, setJobs] = useState(initialJobs);
@@ -27,6 +28,8 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
   const [selectedJob, setSelectedJob] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   // Filtered jobs based on search & filters
   const filteredJobs = useMemo(() => {
@@ -47,6 +50,14 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
       return matchesSearch && matchesStatus && matchesType;
     });
   }, [jobs, searchQuery, statusFilter, typeFilter]);
+
+  // Pagination calculation
+  const totalPages = Math.ceil(filteredJobs.length / pageSize) || 1;
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const paginatedJobs = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredJobs.slice(start, start + pageSize);
+  }, [filteredJobs, safePage, pageSize]);
 
   // Stats calculation
   const totalCount = jobs.length;
@@ -256,7 +267,10 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
             placeholder="Search by job title, category, or location..."
             className="w-full pl-10 pr-4 py-2 text-sm bg-neutral-950/80 border border-white/10 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:border-purple-500 transition-colors"
           />
@@ -267,7 +281,10 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
           {/* Status Filter */}
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
             className="px-3 py-2 text-sm bg-neutral-950/80 border border-white/10 rounded-xl text-neutral-200 focus:outline-none focus:border-purple-500 transition-colors"
           >
             <option value="all">All Status</option>
@@ -278,7 +295,10 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
           {/* Type Filter */}
           <select
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
+            onChange={(e) => {
+              setTypeFilter(e.target.value);
+              setPage(1);
+            }}
             className="px-3 py-2 text-sm bg-neutral-950/80 border border-white/10 rounded-xl text-neutral-200 focus:outline-none focus:border-purple-500 transition-colors"
           >
             <option value="all">All Types</option>
@@ -364,7 +384,7 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 text-neutral-200">
-              {filteredJobs.map((job) => {
+              {paginatedJobs.map((job) => {
                 const isActive = (job.status || "active") === "active";
                 return (
                   <tr
@@ -467,7 +487,7 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
       ) : (
         /* ================= CARDS VIEW ================= */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredJobs.map((job) => {
+          {paginatedJobs.map((job) => {
             const isActive = (job.status || "active") === "active";
             return (
               <div
@@ -556,6 +576,18 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
             );
           })}
         </div>
+      )}
+
+      {/* Pagination Controls */}
+      {filteredJobs.length > 0 && (
+        <Pagination
+          currentPage={safePage}
+          totalPages={totalPages}
+          totalItems={filteredJobs.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          itemName="jobs"
+        />
       )}
 
       {/* ================= JOB DETAILS MODAL ================= */}

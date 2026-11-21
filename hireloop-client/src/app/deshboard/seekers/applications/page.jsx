@@ -12,6 +12,7 @@ import {
 } from "@gravity-ui/icons";
 import { useSession } from "@/lib/auth-client";
 import { getCandidateApplications } from "@/lib/api/applications";
+import Pagination from "@/components/Common/Pagination";
 
 export default function SeekerApplicationsPage() {
   const { data: session } = useSession();
@@ -19,6 +20,12 @@ export default function SeekerApplicationsPage() {
 
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(applications.length / pageSize) || 1;
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const paginatedApps = applications.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   useEffect(() => {
     async function loadApps() {
@@ -103,11 +110,12 @@ export default function SeekerApplicationsPage() {
             </Link>
           </div>
         ) : (
-          applications.map((app) => (
-            <div
-              key={app._id}
-              className="rounded-2xl bg-[#141418] border border-white/[0.08] p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-5 hover:border-white/20 transition-all"
-            >
+          <>
+            {paginatedApps.map((app) => (
+              <div
+                key={app._id}
+                className="rounded-2xl bg-[#141418] border border-white/[0.08] p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-5 hover:border-white/20 transition-all"
+              >
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-3">
                   <h3 className="text-base sm:text-lg font-bold text-white">
@@ -158,7 +166,17 @@ export default function SeekerApplicationsPage() {
                 </Link>
               </div>
             </div>
-          ))
+            ))}
+
+            <Pagination
+              currentPage={safePage}
+              totalPages={totalPages}
+              totalItems={applications.length}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              itemName="applications"
+            />
+          </>
         )}
       </div>
     </div>

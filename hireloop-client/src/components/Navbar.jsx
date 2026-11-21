@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useSession } from "@/lib/auth-client";
 import { authClient } from "@/lib/auth-client";
+import { useLiveUser } from "@/context/LiveUserContext";
 
 const navItems = [
   {
@@ -22,12 +22,11 @@ const navItems = [
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { data: session, isLoading } = useSession();
-  const user = session?.user;
+  const { user, role, isPending: isLoading } = useLiveUser();
   const dashboardHref =
-    user?.role === "admin"
+    role === "admin"
       ? "/deshboard/admin"
-      : user?.role === "recruiter"
+      : role === "recruiter"
       ? "/deshboard/recruiter"
       : "/deshboard/seekers";
   const handleSignOut = async () => {

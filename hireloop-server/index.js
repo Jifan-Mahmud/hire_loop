@@ -6,7 +6,13 @@ const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow browser origins (http://localhost:3000, 127.0.0.1, etc.) or server-to-server/Postman
+    callback(null, true);
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -98,11 +104,12 @@ async function run() {
           });
         }
 
-        // 3. Security check: User account suspension
-        if (user.status === "suspended") {
+        // 3. Security check: User account suspension or ban
+        if (user.status === "suspended" || user.status === "banned") {
           return res.status(403).send({
             success: false,
-            error: "Forbidden: Your account has been suspended.",
+            error: "Forbidden: Your account has been suspended or banned by an administrator.",
+            status: user.status,
           });
         }
 
@@ -140,7 +147,7 @@ async function run() {
             user = await userCollection.findOne({ id: session.userId });
           }
 
-          if (user && user.status !== "suspended") {
+          if (user && user.status !== "suspended" && user.status !== "banned") {
             req.user = user;
             req.session = session;
           }
@@ -839,8 +846,8 @@ async function run() {
       ).catch(() => {});
     }
 
-    // Admin Dashboard Stats
-    app.get('/api/admin/stats', async (req, res) => {
+    // Admin Dashboard Stats (Protected: Admin Only)
+    app.get('/api/admin/stats', ...verifyAdmin, async (req, res) => {
       try {
         const totalUsers = await userCollection.countDocuments();
         const totalRecruiters = await userCollection.countDocuments({ role: "recruiter" });
@@ -903,8 +910,8 @@ async function run() {
       }
     });
 
-    // Admin Users List with search, role filter, status filter, and pagination
-    app.get('/api/admin/users', async (req, res) => {
+    // Admin Users List with search, role filter, status filter, and pagination (Protected: Admin Only)
+    app.get('/api/admin/users', ...verifyAdmin, async (req, res) => {
       try {
         const { search, role, status, page = 1, limit = 20 } = req.query;
         const query = {};
@@ -924,20 +931,33 @@ async function run() {
         }
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
-        const users = await userCollection
-          .find(query)
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(parseInt(limit))
-          .toArray();
-
-        const total = await userCollection.countDocuments(query);
+        const [users, total, totalUsers, totalRecruiters, totalSeekers, totalAdmins, totalSuspended] = await Promise.all([
+          userCollection
+            .find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit))
+            .toArray(),
+          userCollection.countDocuments(query),
+          userCollection.countDocuments({}),
+          userCollection.countDocuments({ role: "recruiter" }),
+          userCollection.countDocuments({ role: "seeker" }),
+          userCollection.countDocuments({ role: "admin" }),
+          userCollection.countDocuments({ $or: [{ status: "suspended" }, { status: "banned" }] }),
+        ]);
 
         res.send({
           users,
           total,
           page: parseInt(page),
           totalPages: Math.ceil(total / parseInt(limit)) || 1,
+          stats: {
+            totalUsers,
+            totalRecruiters,
+            totalSeekers,
+            totalAdmins,
+            totalSuspended,
+          },
         });
       } catch (error) {
         console.error("Error fetching admin users:", error);
@@ -945,32 +965,105 @@ async function run() {
       }
     });
 
-    // Update user role
-    app.patch('/api/admin/users/:id/role', async (req, res) => {
+    // Update user role (seeker, recruiter, admin)
+    app.patch('/api/admin/users/:id/role', ...verifyAdmin, async (req, res) => {
       try {
         const { id } = req.params;
         const { role } = req.body;
         if (!role) return res.status(400).send({ error: "Role is required." });
 
+        const targetRole = role.toLowerCase().trim();
+        const validRoles = ["seeker", "recruiter", "admin"];
+        if (!validRoles.includes(targetRole)) {
+          return res.status(400).send({
+            error: `Invalid role '${role}'. Valid roles are: ${validRoles.join(", ")}`,
+          });
+        }
+
         const filter = ObjectId.isValid(id) ? { $or: [{ _id: new ObjectId(id) }, { id: id }] } : { id: id };
-        const result = await userCollection.updateOne(filter, { $set: { role, updatedAt: new Date() } });
-        res.send({ success: true, result });
+        const targetUser = await userCollection.findOne(filter);
+        if (!targetUser) return res.status(404).send({ error: "User not found." });
+
+        // Safeguard primary admin
+        if (targetUser.email === "admin@jifan.com" && targetRole !== "admin") {
+          return res.status(400).send({ error: "Cannot demote the primary system administrator." });
+        }
+
+        // Adjust default planId according to role
+        let newPlanId = targetUser.planId;
+        if (targetRole === "admin") {
+          newPlanId = "admin-enterprise";
+        } else if (targetRole === "recruiter") {
+          newPlanId = targetUser.planId?.startsWith("recruiter-") ? targetUser.planId : "recruiter-free";
+        } else if (targetRole === "seeker") {
+          newPlanId = targetUser.planId?.startsWith("seeker-") ? targetUser.planId : "seeker-free";
+        }
+
+        const result = await userCollection.updateOne(filter, {
+          $set: {
+            role: targetRole,
+            planId: newPlanId,
+            updatedAt: new Date(),
+          },
+        });
+
+        res.send({
+          success: true,
+          role: targetRole,
+          planId: newPlanId,
+          result,
+        });
       } catch (error) {
         console.error("Error updating user role:", error);
         res.status(500).send({ error: error.message });
       }
     });
 
-    // Update user status (active, suspended)
-    app.patch('/api/admin/users/:id/status', async (req, res) => {
+    // Update user status (active, banned, suspended)
+    app.patch('/api/admin/users/:id/status', ...verifyAdmin, async (req, res) => {
       try {
         const { id } = req.params;
         const { status } = req.body;
         if (!status) return res.status(400).send({ error: "Status is required." });
 
+        const targetStatus = status.toLowerCase().trim();
+        const validStatuses = ["active", "banned", "suspended"];
+        if (!validStatuses.includes(targetStatus)) {
+          return res.status(400).send({
+            error: `Invalid status '${status}'. Valid statuses are: ${validStatuses.join(", ")}`,
+          });
+        }
+
         const filter = ObjectId.isValid(id) ? { $or: [{ _id: new ObjectId(id) }, { id: id }] } : { id: id };
-        const result = await userCollection.updateOne(filter, { $set: { status, updatedAt: new Date() } });
-        res.send({ success: true, result });
+        const targetUser = await userCollection.findOne(filter);
+        if (!targetUser) return res.status(404).send({ error: "User not found." });
+
+        // Safeguard primary admin
+        if (targetUser.email === "admin@jifan.com" && (targetStatus === "banned" || targetStatus === "suspended")) {
+          return res.status(400).send({ error: "Cannot ban or suspend the primary system administrator." });
+        }
+
+        const result = await userCollection.updateOne(filter, {
+          $set: { status: targetStatus, updatedAt: new Date() },
+        });
+
+        // When banned or suspended, immediately terminate all active sessions in MongoDB!
+        if (targetStatus === "banned" || targetStatus === "suspended") {
+          const userKey = targetUser._id ? targetUser._id.toString() : targetUser.id;
+          await sessionCollection.deleteMany({
+            $or: [
+              { userId: userKey },
+              { userId: targetUser.id },
+              ...(targetUser._id ? [{ userId: targetUser._id }] : []),
+            ],
+          });
+        }
+
+        res.send({
+          success: true,
+          status: targetStatus,
+          result,
+        });
       } catch (error) {
         console.error("Error updating user status:", error);
         res.status(500).send({ error: error.message });
@@ -978,7 +1071,7 @@ async function run() {
     });
 
     // Delete user
-    app.delete('/api/admin/users/:id', async (req, res) => {
+    app.delete('/api/admin/users/:id', ...verifyAdmin, async (req, res) => {
       try {
         const { id } = req.params;
         const filter = ObjectId.isValid(id) ? { $or: [{ _id: new ObjectId(id) }, { id: id }] } : { id: id };
@@ -991,7 +1084,7 @@ async function run() {
     });
 
     // Update company approval status (approved, rejected, pending)
-    app.patch('/api/admin/companies/:id/status', async (req, res) => {
+    app.patch('/api/admin/companies/:id/status', ...verifyAdmin, async (req, res) => {
       try {
         const { id } = req.params;
         const { status } = req.body;
@@ -1011,7 +1104,7 @@ async function run() {
     });
 
     // Update job status (active, closed)
-    app.patch('/api/admin/jobs/:id/status', async (req, res) => {
+    app.patch('/api/admin/jobs/:id/status', ...verifyAdmin, async (req, res) => {
       try {
         const { id } = req.params;
         const { status } = req.body;

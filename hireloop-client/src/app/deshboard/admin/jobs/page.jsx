@@ -13,6 +13,7 @@ import {
 } from "@gravity-ui/icons";
 import AdminTopBar from "@/components/Admin/AdminTopBar";
 import { getAdminJobs, updateJobStatus, deleteJob } from "@/lib/api/admin";
+import Pagination from "@/components/Common/Pagination";
 
 // Default showcase jobs matching Image 3
 const defaultJobs = [
@@ -92,6 +93,7 @@ export default function AdminJobsPage() {
   const [activeTab, setActiveTab] = useState("all"); // 'all' | 'active' | 'closed'
   const [previewJob, setPreviewJob] = useState(null);
   const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   useEffect(() => {
     let ignore = false;
@@ -180,13 +182,20 @@ export default function AdminJobsPage() {
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
+  const totalPages = Math.ceil(filteredJobs.length / pageSize) || 1;
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const paginatedJobs = filteredJobs.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
       {/* Top Bar */}
       <AdminTopBar
         placeholder="Search transactions, users, or IDs..."
         searchValue={search}
-        onSearchChange={setSearch}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
         manageRoleText="Admin View"
       />
 
@@ -216,7 +225,10 @@ export default function AdminJobsPage() {
           {/* Status Dropdown */}
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
             className="h-9 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-xs text-neutral-300 focus:outline-none focus:border-purple-500"
           >
             <option value="all" className="bg-[#14141c]">All Statuses</option>
@@ -227,7 +239,10 @@ export default function AdminJobsPage() {
           {/* Category Dropdown */}
           <select
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
+              setPage(1);
+            }}
             className="h-9 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-xs text-neutral-300 focus:outline-none focus:border-purple-500"
           >
             <option value="all" className="bg-[#14141c]">All Categories</option>
@@ -279,7 +294,7 @@ export default function AdminJobsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.04]">
-              {filteredJobs.map((job) => (
+              {paginatedJobs.map((job) => (
                 <tr key={job.id} className="hover:bg-white/[0.02] transition">
                   {/* Title + Ref */}
                   <td className="py-3.5 px-6">
@@ -357,37 +372,16 @@ export default function AdminJobsPage() {
           </table>
         </div>
 
-        {/* Pagination bar matching Image 3 */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-white/[0.08] text-xs text-neutral-400">
-          <span>Showing 1-5 of 173 results</span>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setPage(Math.max(1, page - 1))}
-              className="p-1 rounded-md text-neutral-400 hover:text-white"
-            >
-              &lt;
-            </button>
-            <button className="size-6 rounded bg-white text-black font-bold flex items-center justify-center text-xs">
-              1
-            </button>
-            <button className="size-6 rounded text-neutral-400 hover:text-white flex items-center justify-center text-xs">
-              2
-            </button>
-            <button className="size-6 rounded text-neutral-400 hover:text-white flex items-center justify-center text-xs">
-              3
-            </button>
-            <span className="text-neutral-600 px-1">&hellip;</span>
-            <button className="size-6 rounded text-neutral-400 hover:text-white flex items-center justify-center text-xs">
-              35
-            </button>
-            <button
-              onClick={() => setPage(page + 1)}
-              className="p-1 rounded-md text-neutral-400 hover:text-white"
-            >
-              &gt;
-            </button>
-          </div>
+        {/* Pagination bar */}
+        <div className="px-4">
+          <Pagination
+            currentPage={safePage}
+            totalPages={totalPages}
+            totalItems={filteredJobs.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            itemName="jobs"
+          />
         </div>
       </div>
 

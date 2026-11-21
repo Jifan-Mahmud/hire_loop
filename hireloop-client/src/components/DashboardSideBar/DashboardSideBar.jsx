@@ -20,6 +20,7 @@ import {
 
 import { Button, Drawer } from "@heroui/react";
 import { authClient } from "@/lib/auth-client";
+import { useLiveUser } from "@/context/LiveUserContext";
 
 /* --------------------------------------------------
    Navigation items
@@ -175,11 +176,11 @@ function Logo() {
    Seeker Portal Card (Matches reference design)
 -------------------------------------------------- */
 
-function SeekerProfileWidget() {
-  const { data: session } = authClient.useSession();
-  const user = session?.user;
+function SeekerProfileWidget({ user = null }) {
+  const { user: liveUser } = useLiveUser();
+  const effectiveUser = user || liveUser;
 
-  const plan = user?.plan || "free";
+  const plan = effectiveUser?.plan || "free";
   const tierLabel =
     plan === "premium"
       ? "Premium Tier"
@@ -187,15 +188,15 @@ function SeekerProfileWidget() {
       ? "Professional Tier"
       : "Free Tier";
 
-  const initial = (user?.name || "Seeker").charAt(0).toUpperCase();
+  const initial = (effectiveUser?.name || "Seeker").charAt(0).toUpperCase();
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 hover:border-white/20 transition-all">
       <div className="relative shrink-0">
-        {user?.image ? (
+        {effectiveUser?.image ? (
           <img
-            src={user.image}
-            alt={user?.name || "Seeker"}
+            src={effectiveUser.image}
+            alt={effectiveUser?.name || "Seeker"}
             className="size-10 rounded-full object-cover border border-white/10"
           />
         ) : (
@@ -221,20 +222,20 @@ function SeekerProfileWidget() {
    Recruiter User Card
 -------------------------------------------------- */
 
-function RecruiterUserCard() {
-  const { data: session } = authClient.useSession();
-  const user = session?.user;
+function RecruiterUserCard({ user = null }) {
+  const { user: liveUser } = useLiveUser();
+  const effectiveUser = user || liveUser;
 
   const role = "Recruiter";
-  const initial = (user?.name || "User").charAt(0).toUpperCase();
+  const initial = (effectiveUser?.name || "User").charAt(0).toUpperCase();
 
   return (
     <div className="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3 text-white border border-white/10">
       <div className="relative">
-        {user?.image ? (
+        {effectiveUser?.image ? (
           <img
-            src={user.image}
-            alt={user?.name || "User"}
+            src={effectiveUser.image}
+            alt={effectiveUser?.name || "User"}
             className="size-11 rounded-full object-cover border border-white/10"
           />
         ) : (
@@ -246,7 +247,7 @@ function RecruiterUserCard() {
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold leading-tight text-white">
-          {user?.name || "HireLoop Recruiter"}
+          {effectiveUser?.name || "HireLoop Recruiter"}
         </p>
         <p className="truncate text-xs text-neutral-400">
           {role}
@@ -338,18 +339,19 @@ function NavList({ id, roleType }) {
    Main Dashboard Sidebar Export
 -------------------------------------------------- */
 
-const DashboardSideBar = () => {
+const DashboardSideBar = ({ effectiveUser = null }) => {
   const pathname = usePathname();
-  const { data: session } = authClient.useSession();
-  const user = session?.user;
+  const { user: liveUser } = useLiveUser();
+  const user = effectiveUser || liveUser;
+  const role = user?.role || "seeker";
 
   // Determine current portal role
   const isAdmin =
-    user?.role === "admin" ||
+    role === "admin" ||
     pathname.startsWith("/deshboard/admin");
   const isRecruiter =
     !isAdmin &&
-    (user?.role === "recruiter" || pathname.startsWith("/deshboard/recruiter"));
+    (role === "recruiter" || pathname.startsWith("/deshboard/recruiter"));
   const roleType = isAdmin ? "admin" : isRecruiter ? "recruiter" : "seeker";
 
   return (
@@ -372,7 +374,11 @@ const DashboardSideBar = () => {
           {/* User Widget for Seeker & Recruiter */}
           {!isAdmin && (
             <div className="mt-6 w-full">
-              {roleType === "seeker" ? <SeekerProfileWidget /> : <RecruiterUserCard />}
+              {roleType === "seeker" ? (
+                <SeekerProfileWidget user={user} />
+              ) : (
+                <RecruiterUserCard user={user} />
+              )}
             </div>
           )}
 
@@ -444,9 +450,9 @@ const DashboardSideBar = () => {
                     {!isAdmin && (
                       <div className="mb-7">
                         {roleType === "seeker" ? (
-                          <SeekerProfileWidget />
+                          <SeekerProfileWidget user={user} />
                         ) : (
-                          <RecruiterUserCard />
+                          <RecruiterUserCard user={user} />
                         )}
                       </div>
                     )}

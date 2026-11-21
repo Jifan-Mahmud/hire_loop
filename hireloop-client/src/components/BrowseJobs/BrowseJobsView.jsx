@@ -20,6 +20,7 @@ import {
 } from "@gravity-ui/icons";
 import { useSession, authClient } from "@/lib/auth-client";
 import { getCandidateApplications } from "@/lib/api/applications";
+import Pagination from "@/components/Common/Pagination";
 
 const CATEGORIES = [
   { id: "all", label: "All Categories" },
@@ -53,6 +54,8 @@ export default function BrowseJobsView({ initialJobs = [] }) {
   const [selectedJob, setSelectedJob] = useState(null);
   const [recruiterWarning, setRecruiterWarning] = useState(false);
   const [appliedJobs, setAppliedJobs] = useState({});
+  const [page, setPage] = useState(1);
+  const pageSize = 9;
 
   // Sync candidate's already submitted applications
   useEffect(() => {
@@ -129,6 +132,14 @@ export default function BrowseJobsView({ initialJobs = [] }) {
 
     return result;
   }, [jobs, searchQuery, selectedCategory, selectedType, remoteFilter, sortBy]);
+
+  // Pagination calculation
+  const totalPages = Math.ceil(filteredJobs.length / pageSize) || 1;
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const paginatedJobs = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredJobs.slice(start, start + pageSize);
+  }, [filteredJobs, safePage, pageSize]);
 
   // Format Salary Display
   const formatSalary = (min, max, currency = "USD") => {
@@ -336,9 +347,10 @@ export default function BrowseJobsView({ initialJobs = [] }) {
             </button>
           </div>
         ) : (
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredJobs.map((job) => {
-              const isApplied = !!appliedJobs[job._id];
+          <>
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {paginatedJobs.map((job) => {
+                const isApplied = !!appliedJobs[job._id];
 
               return (
                 <div
@@ -446,7 +458,21 @@ export default function BrowseJobsView({ initialJobs = [] }) {
                 </div>
               );
             })}
-          </div>
+            </div>
+
+            {/* Pagination Controls */}
+            <Pagination
+              currentPage={safePage}
+              totalPages={totalPages}
+              totalItems={filteredJobs.length}
+              pageSize={pageSize}
+              onPageChange={(newPage) => {
+                setPage(newPage);
+                window.scrollTo({ top: 350, behavior: "smooth" });
+              }}
+              itemName="jobs"
+            />
+          </>
         )}
       </section>
 

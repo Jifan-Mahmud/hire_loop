@@ -9,6 +9,7 @@ export async function getMyCompany(params = {}) {
     const queryString = query.toString() ? `?${query.toString()}` : "";
     const res = await fetch(`${baseUrl}/api/companies/my-company${queryString}`, {
       cache: "no-store",
+      credentials: "include",
     });
 
     if (!res.ok) {
@@ -35,6 +36,7 @@ export async function registerCompany(companyData) {
       headers: {
         "Content-Type": "application/json",
       },
+      credentials: "include",
       body: JSON.stringify(companyData),
     });
 

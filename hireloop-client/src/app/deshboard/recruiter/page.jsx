@@ -3,21 +3,20 @@
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardStats from "@/components/DashboardSideBar/DashboardStats";
-import { useSession } from "@/lib/auth-client";
+import { useLiveUser } from "@/context/LiveUserContext";
 import { Briefcase, Check, FileText, Person } from "@gravity-ui/icons";
 
 const RecruiterPage = () => {
   const router = useRouter();
-  const { data: session, isPending } = useSession();
-  const user = session?.user;
+  const { user, role, isPending } = useLiveUser();
 
   useEffect(() => {
-    if (!isPending && user && user.role !== "recruiter") {
-      router.replace("/deshboard/seekers");
+    if (!isPending && user && role !== "recruiter") {
+      router.replace(role === "admin" ? "/deshboard/admin" : "/deshboard/seekers");
     }
-  }, [user, isPending, router]);
+  }, [user, role, isPending, router]);
 
-  if (isPending || !user || user.role !== "recruiter") {
+  if (isPending || !user || role !== "recruiter") {
     return (
       <div className="p-8 text-neutral-400 flex items-center gap-2">
         <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
