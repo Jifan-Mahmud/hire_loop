@@ -1,4 +1,4 @@
-const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+import { API_URL as baseUrl } from "./apiClient";
 
 /**
  * Submit a job application (Seeker only)

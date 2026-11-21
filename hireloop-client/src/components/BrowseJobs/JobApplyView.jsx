@@ -27,6 +27,8 @@ import {
   checkApplicationStatus,
   getMonthlyApplicationUsage,
 } from "@/lib/api/applications";
+import LoadingSpinner from "@/components/Common/LoadingSpinner";
+import { formatSalary } from "@/lib/utils/formatters";
 
 export default function JobApplyView({
   initialJob = null,
@@ -237,16 +239,6 @@ export default function JobApplyView({
     }
   };
 
-  const formatSalary = (min, max, currency = "USD") => {
-    if (!min && !max) return "Competitive Salary";
-    const curr = currency === "USD" ? "$" : `${currency} `;
-    if (min && max) {
-      return `${curr}${(min / 1000).toFixed(0)}k - ${curr}${(max / 1000).toFixed(0)}k / yr`;
-    }
-    if (min) return `From ${curr}${(min / 1000).toFixed(0)}k / yr`;
-    return `Up to ${curr}${(max / 1000).toFixed(0)}k / yr`;
-  };
-
   const currentRedirectTarget = selectedJob?._id
     ? `/jobs/apply?jobId=${selectedJob._id}`
     : "/jobs/apply";
@@ -257,10 +249,7 @@ export default function JobApplyView({
   if (isPending) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center pt-24">
-        <div className="text-center space-y-4">
-          <div className="w-10 h-10 border-3 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-neutral-400">Verifying your account session...</p>
-        </div>
+        <LoadingSpinner size="lg" text="Verifying your account session..." />
       </div>
     );
   }
@@ -361,8 +350,8 @@ export default function JobApplyView({
               <TriangleExclamation width={28} height={28} />
             </div>
 
-            <span className="inline-block px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs font-semibold text-amber-300 mb-3">
-              Role Restriction
+            <span className="inline-block px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs font-mono font-semibold text-amber-300 mb-3">
+              HTTP 403 • ROLE RESTRICTION
             </span>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white">

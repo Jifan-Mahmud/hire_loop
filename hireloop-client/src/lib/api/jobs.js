@@ -1,4 +1,4 @@
-const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+import { API_URL as baseUrl } from "./apiClient";
 
 export async function getAllJobs(filters = {}) {
   try {

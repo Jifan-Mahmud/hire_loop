@@ -21,6 +21,9 @@ import {
 import { useSession, authClient } from "@/lib/auth-client";
 import { getCandidateApplications } from "@/lib/api/applications";
 import Pagination from "@/components/Common/Pagination";
+import EmptyState from "@/components/Common/EmptyState";
+import ShareButton from "@/components/Common/ShareButton";
+import { formatSalary } from "@/lib/utils/formatters";
 
 const CATEGORIES = [
   { id: "all", label: "All Categories" },
@@ -140,17 +143,6 @@ export default function BrowseJobsView({ initialJobs = [] }) {
     const start = (safePage - 1) * pageSize;
     return filteredJobs.slice(start, start + pageSize);
   }, [filteredJobs, safePage, pageSize]);
-
-  // Format Salary Display
-  const formatSalary = (min, max, currency = "USD") => {
-    if (!min && !max) return "Competitive Salary";
-    const currSymbol = currency === "USD" ? "$" : `${currency} `;
-    if (min && max) {
-      return `${currSymbol}${(min / 1000).toFixed(0)}k - ${currSymbol}${(max / 1000).toFixed(0)}k / yr`;
-    }
-    if (min) return `From ${currSymbol}${(min / 1000).toFixed(0)}k / yr`;
-    return `Up to ${currSymbol}${(max / 1000).toFixed(0)}k / yr`;
-  };
 
   const handleApply = (job) => {
     if (!job) return;
@@ -331,21 +323,13 @@ export default function BrowseJobsView({ initialJobs = [] }) {
             JOBS CARD GRID (কার্ড আকারে প্রদর্শন)
            ========================================================= */}
         {filteredJobs.length === 0 ? (
-          <div className="py-20 text-center rounded-3xl border border-dashed border-white/15 bg-neutral-900/40 my-8">
-            <div className="w-16 h-16 mx-auto rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-neutral-400 mb-4">
-              <Briefcase width={28} height={28} />
-            </div>
-            <h3 className="text-xl font-bold text-white">No jobs match your search</h3>
-            <p className="text-neutral-400 text-sm max-w-md mx-auto mt-1 mb-6">
-              We couldn&apos;t find any positions matching your selected filters. Try broadening your keywords.
-            </p>
-            <button
-              onClick={handleResetFilters}
-              className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-all border border-white/10"
-            >
-              Clear All Filters
-            </button>
-          </div>
+          <EmptyState
+            icon={Briefcase}
+            title="No jobs match your search"
+            description="We couldn't find any positions matching your selected filters. Try broadening your keywords or clearing filters."
+            actionLabel="Clear All Filters"
+            onAction={handleResetFilters}
+          />
         ) : (
           <>
             <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -620,8 +604,8 @@ export default function BrowseJobsView({ initialJobs = [] }) {
               <TriangleExclamation width={26} height={26} />
             </div>
 
-            <span className="inline-block px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs font-semibold text-amber-300 mb-2">
-              Role Restriction
+            <span className="inline-block px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs font-mono font-semibold text-amber-300 mb-2">
+              HTTP 403 • ROLE RESTRICTION
             </span>
 
             <h3 className="text-xl font-bold text-white">

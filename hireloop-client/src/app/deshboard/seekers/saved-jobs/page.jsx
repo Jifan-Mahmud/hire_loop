@@ -2,7 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
-import { Bookmark, ArrowRight, Briefcase } from "@gravity-ui/icons";
+import { Bookmark, ArrowRight } from "@gravity-ui/icons";
+import EmptyState from "@/components/Common/EmptyState";
 
 export default function SeekerSavedJobsPage() {
   return (
@@ -28,23 +29,13 @@ export default function SeekerSavedJobsPage() {
       </div>
 
       <div className="mt-8">
-        <div className="rounded-2xl bg-[#141418] border border-white/[0.08] p-12 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-4 text-amber-400">
-            <Bookmark className="size-6" />
-          </div>
-          <h3 className="text-lg font-semibold text-white">
-            Saved Jobs Portfolio
-          </h3>
-          <p className="text-sm text-neutral-400 max-w-md mx-auto mt-2 mb-6">
-            Bookmark interesting positions while browsing to keep them organized here and apply when you are ready.
-          </p>
-          <Link
-            href="/jobs"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-black font-semibold text-xs sm:text-sm hover:bg-neutral-200 transition-colors"
-          >
-            Explore Open Positions
-          </Link>
-        </div>
+        <EmptyState
+          icon={Bookmark}
+          title="Saved Jobs Portfolio"
+          description="Bookmark interesting positions while browsing to keep them organized here and apply when you are ready."
+          actionLabel="Explore Open Positions"
+          actionHref="/jobs"
+        />
       </div>
     </div>
   );

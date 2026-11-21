@@ -1,20 +1,4 @@
-import { authClient } from "@/lib/auth-client";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
-async function getAuthHeaders() {
-  const headers = {};
-  if (typeof window !== "undefined") {
-    try {
-      const session = await authClient.getSession();
-      const token = session?.data?.session?.token;
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-    } catch {}
-  }
-  return headers;
-}
+import { API_URL, getAuthHeaders } from "./apiClient";
 
 export async function getAdminStats() {
   try {
@@ -41,6 +25,10 @@ export async function getAdminUsers(params = {}) {
       cache: "no-store",
       credentials: "include",
     });
+    if (res.status === 403) {
+      console.warn("HTTP 403 Forbidden: Admin privileges required for /api/admin/users");
+      return { users: [], total: 0, page: 1, totalPages: 1, stats: null, forbidden: true };
+    }
     if (!res.ok) throw new Error("Failed to fetch admin users");
     return await res.json();
   } catch (error) {

@@ -19,6 +19,8 @@ import {
   deleteUser,
 } from "@/lib/api/admin";
 import Pagination from "@/components/Common/Pagination";
+import StatusBadge from "@/components/Common/StatusBadge";
+import { formatDate, getInitials } from "@/lib/utils/formatters";
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
@@ -71,13 +73,7 @@ export default function AdminUsersPage() {
             name: u.name || u.email.split("@")[0],
             email: u.email,
             role: u.role || "seeker",
-            createdAt: u.createdAt
-              ? new Date(u.createdAt).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "2-digit",
-                  year: "numeric",
-                })
-              : "Recent",
+            createdAt: formatDate(u.createdAt),
             status: u.status || "active",
             planId:
               u.planId ||
@@ -85,7 +81,7 @@ export default function AdminUsersPage() {
                 ? "admin-enterprise"
                 : `${u.role || "seeker"}-free`),
             avatar: u.image || u.avatar || null,
-            initials: (u.name || u.email).slice(0, 2).toUpperCase(),
+            initials: getInitials(u.name, u.email),
           }));
 
           setUsers(apiUsers);
@@ -612,20 +608,7 @@ export default function AdminUsersPage() {
 
                       {/* Status */}
                       <td className="py-3.5 px-6">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            !isBanned
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                              : "bg-rose-500/15 text-rose-400 border border-rose-500/30"
-                          }`}
-                        >
-                          <span
-                            className={`size-1.5 rounded-full ${
-                              !isBanned ? "bg-emerald-400 animate-pulse" : "bg-rose-400"
-                            }`}
-                          />
-                          <span className="capitalize">{user.status}</span>
-                        </span>
+                        <StatusBadge status={user.status} />
                       </td>
 
                       {/* Join Date */}

@@ -15,6 +15,7 @@ import {
 } from "@gravity-ui/icons";
 import { useSession, authClient } from "@/lib/auth-client";
 import { checkApplicationStatus } from "@/lib/api/applications";
+import ShareButton from "@/components/Common/ShareButton";
 
 export default function JobDetailView({ job }) {
   const router = useRouter();
@@ -126,20 +127,29 @@ export default function JobDetailView({ job }) {
               </div>
             </div>
 
-            {applied ? (
-              <div className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 font-semibold text-sm">
-                <CircleCheck width={16} height={16} />
-                <span>Application Submitted!</span>
-              </div>
-            ) : (
-              <button
-                onClick={handleApplyClick}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-xl shadow-purple-600/30 transition-all hover:scale-[1.02] shrink-0"
-              >
-                <span>Apply for this Position</span>
-                <ArrowRight width={16} height={16} />
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <ShareButton
+                url={`/jobs/${job._id}`}
+                title={job.title}
+                text={`Check out this opening for ${job.title} at ${job.companyName || "HireLoop"}!`}
+                variant="button"
+              />
+
+              {applied ? (
+                <div className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 font-semibold text-sm">
+                  <CircleCheck width={16} height={16} />
+                  <span>Application Submitted!</span>
+                </div>
+              ) : (
+                <button
+                  onClick={handleApplyClick}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-xl shadow-purple-600/30 transition-all hover:scale-[1.02] shrink-0"
+                >
+                  <span>Apply for this Position</span>
+                  <ArrowRight width={16} height={16} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

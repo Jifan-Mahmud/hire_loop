@@ -14,6 +14,8 @@ import {
 import AdminTopBar from "@/components/Admin/AdminTopBar";
 import { getAdminJobs, updateJobStatus, deleteJob } from "@/lib/api/admin";
 import Pagination from "@/components/Common/Pagination";
+import StatusBadge from "@/components/Common/StatusBadge";
+import { formatDate, formatSalary } from "@/lib/utils/formatters";
 
 // Default showcase jobs matching Image 3
 const defaultJobs = [
@@ -113,17 +115,9 @@ export default function AdminJobsPage() {
             type: j.type
               ? j.type.charAt(0).toUpperCase() + j.type.slice(1)
               : "Full-time",
-            datePosted: j.createdAt
-              ? new Date(j.createdAt).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "2-digit",
-                  year: "numeric",
-                })
-              : "Oct 20, 2026",
+            datePosted: formatDate(j.createdAt),
             status: j.status === "closed" ? "closed" : "active",
-            salary: j.salaryMin
-              ? `$${j.salaryMin} - $${j.salaryMax || j.salaryMin}`
-              : "$100,000+",
+            salary: formatSalary(j.salaryMin, j.salaryMax, j.currency),
             location: j.location || "Remote",
           }));
           setJobs(mapped);
@@ -331,20 +325,7 @@ export default function AdminJobsPage() {
 
                   {/* Status Pill */}
                   <td className="py-3.5 px-6">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium uppercase font-mono ${
-                        job.status === "active"
-                          ? "bg-emerald-500/10 text-emerald-400"
-                          : "bg-neutral-800 text-neutral-400"
-                      }`}
-                    >
-                      <span
-                        className={`size-1.5 rounded-full ${
-                          job.status === "active" ? "bg-emerald-400" : "bg-neutral-400"
-                        }`}
-                      />
-                      {job.status}
-                    </span>
+                    <StatusBadge status={job.status} />
                   </td>
 
                   {/* Actions (Eye, Trash) */}

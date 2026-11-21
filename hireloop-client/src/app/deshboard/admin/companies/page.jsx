@@ -12,6 +12,8 @@ import {
 import AdminTopBar from "@/components/Admin/AdminTopBar";
 import { getAdminCompanies, updateCompanyStatus } from "@/lib/api/admin";
 import Pagination from "@/components/Common/Pagination";
+import StatusBadge from "@/components/Common/StatusBadge";
+import { formatDate, getInitials } from "@/lib/utils/formatters";
 
 // Showcase companies matching Image 4
 const defaultCompanies = [
@@ -88,17 +90,11 @@ export default function AdminCompaniesPage() {
           const mapped = data.map((c) => ({
             id: c._id || c.id,
             name: c.name,
-            code: (c.name || "CO").slice(0, 2).toUpperCase(),
+            code: getInitials(c.name),
             recruiterEmail: c.recruiterEmail || c.email || "recruiter@example.com",
             industry: c.industry || "Technology",
             status: c.status || "pending",
-            dateSubmitted: c.createdAt
-              ? new Date(c.createdAt).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "2-digit",
-                  year: "numeric",
-                })
-              : "Oct 15, 2026",
+            dateSubmitted: formatDate(c.createdAt),
           }));
           setCompanies(mapped);
         }
@@ -262,26 +258,7 @@ export default function AdminCompaniesPage() {
 
                   {/* Status */}
                   <td className="py-3.5 px-6">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        comp.status === "approved"
-                          ? "bg-emerald-500/10 text-emerald-400"
-                          : comp.status === "pending"
-                          ? "bg-amber-500/10 text-amber-400"
-                          : "bg-rose-500/10 text-rose-400"
-                      }`}
-                    >
-                      <span
-                        className={`size-1.5 rounded-full ${
-                          comp.status === "approved"
-                            ? "bg-emerald-400"
-                            : comp.status === "pending"
-                            ? "bg-amber-400"
-                            : "bg-rose-400"
-                        }`}
-                      />
-                      <span className="capitalize">{comp.status}</span>
-                    </span>
+                    <StatusBadge status={comp.status} />
                   </td>
 
                   {/* Date Submitted */}

@@ -11,6 +11,7 @@ import {
 } from "@gravity-ui/icons";
 import AdminTopBar from "@/components/Admin/AdminTopBar";
 import Pagination from "@/components/Common/Pagination";
+import StatusBadge from "@/components/Common/StatusBadge";
 
 export default function AdminPaymentsPage() {
   const [search, setSearch] = useState("");
@@ -244,26 +245,7 @@ export default function AdminPaymentsPage() {
 
                   {/* Status */}
                   <td className="py-3.5 px-6 text-right">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium ${
-                        t.status === "SUCCESS"
-                          ? "bg-emerald-500/10 text-emerald-400"
-                          : t.status === "PENDING"
-                          ? "bg-amber-500/10 text-amber-400"
-                          : "bg-rose-500/10 text-rose-400"
-                      }`}
-                    >
-                      <span
-                        className={`size-1.5 rounded-full ${
-                          t.status === "SUCCESS"
-                            ? "bg-emerald-400"
-                            : t.status === "PENDING"
-                            ? "bg-amber-400"
-                            : "bg-rose-400"
-                        }`}
-                      />
-                      {t.status}
-                    </span>
+                    <StatusBadge status={t.status} className="font-mono text-xs" />
                   </td>
                 </tr>
               ))}

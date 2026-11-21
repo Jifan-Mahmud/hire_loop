@@ -18,6 +18,8 @@ import {
 } from "@gravity-ui/icons";
 import { deleteJob, updateJobStatus } from "@/lib/api/jobs";
 import Pagination from "@/components/Common/Pagination";
+import EmptyState from "@/components/Common/EmptyState";
+import { formatSalary, formatDate } from "@/lib/utils/formatters";
 
 export default function RecruiterJobsView({ initialJobs = [], companyId = null, company = null }) {
   const [jobs, setJobs] = useState(initialJobs);
@@ -108,29 +110,6 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
       alert("Error updating status.");
     } finally {
       setUpdatingId(null);
-    }
-  };
-
-  const formatSalary = (job) => {
-    if (job.salaryMin && job.salaryMax) {
-      return `${job.salaryMin.toLocaleString()} - ${job.salaryMax.toLocaleString()} ${job.currency || "USD"}`;
-    }
-    if (job.salaryMin) {
-      return `From ${job.salaryMin.toLocaleString()} ${job.currency || "USD"}`;
-    }
-    return "Negotiable";
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return "N/A";
-    try {
-      return new Date(dateStr).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    } catch {
-      return dateStr;
     }
   };
 
@@ -338,37 +317,26 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
 
       {/* Data Presentation (Empty State or List) */}
       {filteredJobs.length === 0 ? (
-        <div className="py-16 px-4 text-center rounded-3xl border border-dashed border-white/10 bg-neutral-900/30">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-neutral-400 mb-4">
-            <Briefcase width={28} height={28} />
-          </div>
-          <h3 className="text-lg font-semibold text-white">No jobs found</h3>
-          <p className="text-sm text-neutral-400 max-w-md mx-auto mt-1 mb-6">
-            {jobs.length === 0
+        <EmptyState
+          icon={Briefcase}
+          title={jobs.length === 0 ? "No jobs posted yet" : "No jobs match your filters"}
+          description={
+            jobs.length === 0
               ? "You haven't posted any jobs yet. Start building your team by posting a new job opportunity."
-              : "No jobs match your selected search or filter criteria. Try clearing filters."}
-          </p>
-          {jobs.length === 0 ? (
-            <Link
-              href="/deshboard/recruiter/jobs/new"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-all"
-            >
-              <Plus width={18} height={18} />
-              <span>Post Your First Job</span>
-            </Link>
-          ) : (
-            <button
-              onClick={() => {
-                setSearchQuery("");
-                setStatusFilter("all");
-                setTypeFilter("all");
-              }}
-              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-sm text-white transition-colors"
-            >
-              Reset Filters
-            </button>
-          )}
-        </div>
+              : "No jobs match your selected search or filter criteria. Try clearing filters."
+          }
+          actionLabel={jobs.length === 0 ? "Post Your First Job" : "Reset Filters"}
+          actionHref={jobs.length === 0 ? "/deshboard/recruiter/jobs/new" : ""}
+          onAction={
+            jobs.length === 0
+              ? null
+              : () => {
+                  setSearchQuery("");
+                  setStatusFilter("all");
+                  setTypeFilter("all");
+                }
+          }
+        />
       ) : viewMode === "table" ? (
         /* ================= TABLE VIEW ================= */
         <div className="overflow-x-auto rounded-2xl border border-white/10 bg-neutral-900/50 backdrop-blur-sm shadow-xl">
@@ -423,7 +391,7 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
 
                     {/* Salary */}
                     <td className="py-4 px-4 whitespace-nowrap font-medium text-neutral-200">
-                      {formatSalary(job)}
+                      {formatSalary(job.salaryMin, job.salaryMax, job.currency)}
                     </td>
 
                     {/* Deadline */}
@@ -552,7 +520,7 @@ export default function RecruiterJobsView({ initialJobs = [], companyId = null, 
                       Salary
                     </p>
                     <p className="text-sm font-semibold text-neutral-200 mt-0.5">
-                      {formatSalary(job)}
+                      {formatSalary(job.salaryMin, job.salaryMax, job.currency)}
                     </p>
                   </div>
 
